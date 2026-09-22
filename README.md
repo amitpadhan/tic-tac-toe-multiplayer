@@ -1,11 +1,16 @@
 # ⚡ Next-Gen Tic-Tac-Toe Online (Multiplayer)
 
-> A modern, real-time multiplayer Tic-Tac-Toe web game built with **Node.js**, **Express**, and **Socket.IO**, featuring unbeatable Minimax AI, procedural sound effects, animated strike-throughs, and a sleek neon cyberpunk glassmorphism UI.
+> A modern, real-time multiplayer Tic-Tac-Toe web game featuring PeerJS WebRTC P2P (for serverless GitHub Pages hosting) + Node.js Socket.IO fallback, unbeatable Minimax AI, procedural sound effects, animated strike-throughs, and a sleek neon cyberpunk glassmorphism UI.
+
+[![Play Live Demo](https://img.shields.io/badge/🎮%20Play%20Live-GitHub%20Pages-00f0ff?style=for-the-badge)](https://amitpadhan.github.io/tic-tac-toe-multiplayer/)
 
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
+![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Active-success.svg)
 ![Node](https://img.shields.io/badge/Node.js-v18%2B-green.svg)
 ![Socket.IO](https://img.shields.io/badge/Socket.IO-v4.7.5-black.svg)
 ![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-brightgreen.svg)
+
+🌐 **Live Demo on GitHub Pages**: [https://amitpadhan.github.io/tic-tac-toe-multiplayer/](https://amitpadhan.github.io/tic-tac-toe-multiplayer/)
 
 ---
 

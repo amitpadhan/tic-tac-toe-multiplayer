@@ -14,8 +14,9 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 3000;
 
-// Serve static files from the public folder
+// Serve static files from the public folder and repository root
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
