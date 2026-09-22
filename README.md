@@ -1,6 +1,6 @@
-# ⚡ Next-Gen Tic-Tac-Toe Online (Multiplayer)
+# ⚡ Dual Arcade: Tic-Tac-Toe & Dots and Boxes (Multiplayer)
 
-> A modern, real-time multiplayer Tic-Tac-Toe web game featuring PeerJS WebRTC P2P (for serverless GitHub Pages hosting) + Node.js Socket.IO fallback, unbeatable Minimax AI, procedural sound effects, animated strike-throughs, and a sleek neon cyberpunk glassmorphism UI.
+> A modern, real-time multiplayer web gaming platform featuring **Tic-Tac-Toe Pro** and **Dots and Boxes**. Supports instant cross-device multiplayer via Node.js Socket.IO and WebRTC P2P (for serverless GitHub Pages hosting), smart AI engines, procedural sound effects, and a sleek neon dark/light UI.
 
 [![Play Live Demo](https://img.shields.io/badge/🎮%20Play%20Live-GitHub%20Pages-00f0ff?style=for-the-badge)](https://amitpadhan.github.io/tic-tac-toe-multiplayer/)
 
@@ -14,45 +14,79 @@
 
 ---
 
-## 🎮 Game Modes
+## 🕹️ Main Game Selector
 
-### 1. 🌐 Real-Time Online Multiplayer
-- **Instant Rooms**: Create private rooms with a 6-character code.
-- **One-Click Share Link**: Copy the room URL and invite friends directly (`?room=CODE`).
-- **Real-Time Sync**: Low-latency moves synced using Socket.IO WebSockets.
-- **Spectator Mode**: If more than 2 players join, additional players watch as live spectators!
-- **Live Reactions**: Send quick floating emoji reactions (`🔥`, `👏`, `😂`, `😮`, `💀`, `GG`) during matches.
-- **Rematch System**: Both players can vote to immediately start a rematch without re-sharing codes.
+When you open the app, you are greeted by the **Main Game Selector Hub**:
+1. **Tic-Tac-Toe Pro**: Fast-paced classic 3x3 duel.
+2. **Dots and Boxes**: Territory capture with lines, closed boxes, and bonus turns!
+3. You can switch between games at any time using the **🕹️ Games** button in the header.
 
-### 2. 🤖 Solo vs AI (Minimax Algorithm)
-- **Easy**: Random casual moves.
-- **Medium**: Blocks your winning lines and seizes immediate winning opportunities.
-- **Master (Unbeatable)**: Full **Minimax algorithm** with depth scoring and alpha-beta pruning. It is mathematically impossible to beat!
-- **Play as X or O**: Choose whether you play first (X) or let the AI make the opening move (O).
+---
 
-### 3. 👥 Local Pass & Play
-- Two players on the same computer, tablet, or phone.
-- Turn-by-turn indicator with animated score tracker.
+## 🎮 Included Games & Modes
+
+### 1. ⭕❌ Tic-Tac-Toe Pro
+- **Online Match**: Create a private 6-character room code. Connect across phones, laptops, and tablets in real-time.
+- **Solo vs AI**:
+  - **Easy**: Casual practice.
+  - **Medium**: Blocks lines and takes immediate wins.
+  - **Master (Unbeatable)**: Full **Minimax algorithm** with depth scoring and alpha-beta pruning.
+- **Pass & Play**: Local 2-player mode on the same device.
+
+### 2. 🔲 Dots and Boxes
+- **Territory Capture**: Connect adjacent dots with glowing lines. The player who draws the 4th side of a 1x1 box claims that box (+1 point) and earns a **BONUS TURN**!
+- **Grid Sizes**: 
+  - `2x2 Boxes` (Quick Blitz)
+  - `3x3 Boxes` (Classic 9 Boxes)
+  - `4x4 Boxes` (Pro Strategic 16 Boxes)
+- **Online Match**: Play against friends on other devices in real-time.
+- **Solo vs AI**:
+  - **Casual**: Fun, random play.
+  - **Balanced**: Takes open boxes and avoids giving away 3rd sides.
+  - **Master**: Strategic chain AI that controls initiative and minimizes chain sacrifices!
+- **Pass & Play**: 2-player local mode with responsive touch controls.
+
+---
+
+## 📱 Cross-Device Connection (How to Connect from Other Devices)
+
+### Connecting Devices on the Same Local Wi-Fi Network:
+1. Start the server on your computer:
+   ```bash
+   npm start
+   ```
+2. The terminal displays your local network address:
+   ```
+   ======================================================
+   ⚡ Game Arcade Server running on port 3000
+      - Local:    http://localhost:3000
+      - Network:  http://192.168.1.X:3000 (Connect from another device!)
+   ======================================================
+   ```
+3. Open `http://192.168.1.X:3000` on your mobile phone, tablet, or another computer on the same Wi-Fi.
+4. On Device 1: Click **Play Online** -> **Create Room** to get a 6-character code (e.g. `K9M2P4`).
+5. On Device 2: Click **Play Online** -> **Join Room** -> Enter the code `K9M2P4`.
+6. Match begins instantly!
+
+### Direct Invite Links:
+- Click **Copy Link** inside the waiting lobby. The link includes your room code (`?game=tictactoe&room=CODE` or `?game=dots&room=CODE`).
+- Opening the invite link on another device auto-populates the room code and connects directly.
 
 ---
 
 ## ✨ Features
 
-- 🔊 **Zero-Dependency Sound Effects**: Procedurally synthesized retro-modern audio using the browser's native **Web Audio API** (moves, clicks, fanfare on win, tie cadence, reactions). No bulky MP3 downloads required!
-- 🎊 **Confetti Cannon**: Interactive Canvas-based particle explosion whenever a player wins.
-- ⚡ **Neon Cyberpunk Aesthetic**: Glowing neon cyan & hot pink palette, glassmorphism cards, and animated ambient orbs.
-- 🌗 **Theme Switcher**: Switch between **Dark Neon** and **Clean Slate** light theme with one click.
-- 📱 **Mobile & Desktop Responsive**: Fluid touch-friendly layout tailored for iPhones, Android devices, tablets, laptops, and ultra-wide screens.
-- 🎯 **SVG Winning Strike Line**: Smooth drawing line animation connecting the 3 winning cells.
-- 🔄 **Live Scoreboard**: Tracks player X wins, player O wins, and draws across rounds.
+- 🔊 **Zero-Dependency Sound Effects**: Synthesized audio using browser-native **Web Audio API** (moves, line snaps, box completions, victory fanfare, reactions).
+- 🎊 **Confetti Cannon**: Canvas particle celebration on match victory.
+- ⚡ **Neon Cyberpunk Aesthetic**: Glowing cyan, pink, and indigo palettes with smooth animations.
+- 🌗 **Theme Switcher**: Switch between **Dark Mode** and **Clean Slate Light Mode**.
+- 📱 **Mobile & Desktop Responsive**: Optimized tap targets for easy line drawing and cell clicking on smartphones.
+- 💬 **Live Reactions**: Quick floating emoji reactions (`🔥`, `👏`, `😂`, `😮`, `💀`, `GG`).
+- 🔄 **Rematch System**: Quick rematch voting without needing to re-enter room codes.
 
 ---
 
 ## 🚀 Quick Start
-
-### Prerequisites
-- [Node.js](https://nodejs.org/) (v18 or higher recommended)
-- [npm](https://www.npmjs.com/)
 
 ### 1. Clone the repository
 ```bash
@@ -70,29 +104,7 @@ npm install
 npm start
 ```
 
-Open your browser and navigate to:
-```
-http://localhost:3000
-```
-
-For live reload during development:
-```bash
-npm run dev
-```
-
----
-
-## 🐳 Run with Docker
-
-You can build and run the game inside a Docker container:
-
-```bash
-# Build the Docker image
-docker build -t tic-tac-toe-multiplayer .
-
-# Run container on port 3000
-docker run -p 3000:3000 tic-tac-toe-multiplayer
-```
+Open your browser at `http://localhost:3000`.
 
 ---
 
@@ -104,34 +116,19 @@ tic-tac-toe-multiplayer/
 ├── LICENSE                     # MIT License
 ├── README.md                   # Documentation
 ├── package.json                # Project manifest and scripts
-├── server.js                   # Node.js + Express + Socket.IO server
-└── public/                     # Static client files
-    ├── index.html              # Semantic HTML5 frontend
-    ├── style.css               # Neon Cyberpunk glassmorphism styles
-    ├── assets/
-    │   └── favicon.svg         # SVG vector app icon
-    └── js/
-        ├── app.js              # Core game loop, minimax AI & Socket.io client
-        ├── confetti.js         # Canvas particle explosion engine
-        └── sound.js            # Web Audio API sound synthesizer
+├── server.js                   # Node.js + Express + Socket.IO server (Multi-game)
+├── index.html                  # HTML5 Game Hub & Game Arenas
+├── style.css                   # Cyberpunk glassmorphism styles & responsive grids
+├── assets/                     # Favicons and SVG vector assets
+├── js/
+│   ├── app.js                  # Main Hub controller, routing & global UI
+│   ├── network.js              # Unified Socket.IO & WebRTC P2P Network Manager
+│   ├── tictactoe.js            # Tic-Tac-Toe Minimax AI & game engine
+│   ├── dots.js                 # Dots and Boxes strategic AI & game engine
+│   ├── confetti.js             # Canvas particle explosion engine
+│   └── sound.js                # Web Audio API procedural sound synthesizer
+└── public/                     # Mirrored distribution files
 ```
-
----
-
-## 🌐 Deploying to Production
-
-This app can be deployed anywhere Node.js is supported:
-
-### Deploy to Render
-1. Create a new Web Service on [Render](https://render.com/).
-2. Connect your GitHub repository.
-3. Set **Build Command** to `npm install`.
-4. Set **Start Command** to `npm start`.
-
-### Deploy to Railway
-1. Click **New Project** on [Railway](https://railway.app/).
-2. Select **Deploy from GitHub repo**.
-3. Railway automatically detects Node.js and deploys!
 
 ---
 

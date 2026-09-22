@@ -165,6 +165,74 @@ class SoundEffects {
     osc.start();
     osc.stop(this.ctx.currentTime + 0.08);
   }
+
+  playLineDraw() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(480, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(720, this.ctx.currentTime + 0.07);
+
+    gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.07);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.07);
+  }
+
+  playBoxComplete() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6 chord
+    notes.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.05);
+
+      gain.gain.setValueAtTime(0.15, this.ctx.currentTime + idx * 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.05 + 0.22);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(this.ctx.currentTime + idx * 0.05);
+      osc.stop(this.ctx.currentTime + idx * 0.05 + 0.22);
+    });
+  }
+
+  playBonusTurn() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(700, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1100, this.ctx.currentTime + 0.14);
+
+    gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.14);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.14);
+  }
 }
 
 window.soundFX = new SoundEffects();

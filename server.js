@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const os = require('os');
 
 const app = express();
 const server = http.createServer(app);
@@ -9,18 +10,47 @@ const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST']
-  }
+  },
+  transports: ['websocket', 'polling']
 });
 
 const PORT = process.env.PORT || 3000;
 
-// Serve static files from the public folder and repository root
+// Helper to get local network IPv4 addresses
+function getNetworkIps() {
+  const nets = os.networkInterfaces();
+  const ips = [];
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      if (net.family === 'IPv4' && !net.internal) {
+        ips.push(net.address);
+      }
+    }
+  }
+  return ips;
+}
+
+// Serve static files from repository root and public folder
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(__dirname));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', activeRooms: rooms.size, timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    activeRooms: rooms.size,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Server info endpoint for client device connection discovery
+app.get('/api/server-info', (req, res) => {
+  res.json({
+    status: 'ok',
+    port: PORT,
+    ips: getNetworkIps(),
+    activeRooms: rooms.size
+  });
 });
 
 // Room storage
@@ -56,37 +86,79 @@ function checkWinner(board) {
   return null;
 }
 
+// Dots & Boxes helpers
+function getBoxLineIds(r, c) {
+  return [
+    `h-${r}-${c}`,     // top
+    `h-${r + 1}-${c}`, // bottom
+    `v-${r}-${c}`,     // left
+    `v-${r}-${c + 1}`  // right
+  ];
+}
+
+function checkNewlyCompletedBoxes(lines, rows, cols, currentBoxes) {
+  const completed = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const boxId = `b-${r}-${c}`;
+      if (!currentBoxes[boxId]) {
+        const sides = getBoxLineIds(r, c);
+        if (sides.every(id => !!lines[id])) {
+          completed.push(boxId);
+        }
+      }
+    }
+  }
+  return completed;
+}
+
 io.on('connection', (socket) => {
   let currentRoomCode = null;
 
   // Create Room
-  socket.on('create-room', ({ playerName }) => {
+  socket.on('create-room', ({ playerName, gameType = 'tictactoe', config = {} }) => {
     const cleanName = (playerName || 'Player 1').trim().slice(0, 15) || 'Player 1';
+    const cleanGameType = gameType === 'dots' ? 'dots' : 'tictactoe';
     const roomCode = generateRoomCode();
     currentRoomCode = roomCode;
 
+    const symbol = cleanGameType === 'dots' ? 'P1' : 'X';
+
     const room = {
       code: roomCode,
+      gameType: cleanGameType,
       players: [
-        { id: socket.id, name: cleanName, symbol: 'X', score: 0 }
+        { id: socket.id, name: cleanName, symbol: symbol, score: 0 }
       ],
       spectators: [],
-      board: Array(9).fill(null),
-      currentTurn: 'X',
       status: 'waiting',
       winner: null,
-      winningLine: null,
       rematchVotes: new Set(),
-      scores: { X: 0, O: 0, draws: 0 },
-      startingTurn: 'X'
+      startingTurn: symbol,
+      currentTurn: symbol
     };
+
+    if (cleanGameType === 'tictactoe') {
+      room.board = Array(9).fill(null);
+      room.winningLine = null;
+      room.scores = { X: 0, O: 0, draws: 0 };
+    } else {
+      const rows = Math.min(Math.max(parseInt(config.rows, 10) || 3, 2), 5);
+      const cols = Math.min(Math.max(parseInt(config.cols, 10) || 3, 2), 5);
+      room.rows = rows;
+      room.cols = cols;
+      room.lines = {};
+      room.boxes = {};
+      room.scores = { P1: 0, P2: 0 };
+    }
 
     rooms.set(roomCode, room);
     socket.join(roomCode);
 
     socket.emit('room-created', {
       roomCode,
-      playerSymbol: 'X',
+      gameType: cleanGameType,
+      playerSymbol: symbol,
       playerName: cleanName,
       roomState: getPublicRoomState(room)
     });
@@ -98,7 +170,7 @@ io.on('connection', (socket) => {
     const room = rooms.get(code);
 
     if (!room) {
-      socket.emit('error-message', { message: 'Room not found. Please verify the code.' });
+      socket.emit('error-message', { message: `Room "${code}" not found. Please verify the code.` });
       return;
     }
 
@@ -106,15 +178,16 @@ io.on('connection', (socket) => {
     socket.join(code);
 
     if (room.players.length === 1) {
-      // Join as Player 2 (O)
       const cleanName = (playerName || 'Player 2').trim().slice(0, 15) || 'Player 2';
-      const player2 = { id: socket.id, name: cleanName, symbol: 'O', score: 0 };
+      const symbol = room.gameType === 'dots' ? 'P2' : 'O';
+      const player2 = { id: socket.id, name: cleanName, symbol: symbol, score: 0 };
       room.players.push(player2);
       room.status = 'playing';
 
       socket.emit('room-joined', {
         roomCode: code,
-        playerSymbol: 'O',
+        gameType: room.gameType,
+        playerSymbol: symbol,
         playerName: cleanName,
         isSpectator: false,
         roomState: getPublicRoomState(room)
@@ -123,15 +196,17 @@ io.on('connection', (socket) => {
       // Notify entire room that game has started
       io.to(code).emit('game-started', {
         message: `${player2.name} joined! Game started.`,
+        gameType: room.gameType,
         roomState: getPublicRoomState(room)
       });
     } else {
-      // Room is already full with 2 players -> Join as spectator
+      // Room has 2 players already -> Join as spectator
       const spectatorName = (playerName || `Spectator ${room.spectators.length + 1}`).trim().slice(0, 15);
       room.spectators.push({ id: socket.id, name: spectatorName });
 
       socket.emit('room-joined', {
         roomCode: code,
+        gameType: room.gameType,
         playerSymbol: null,
         playerName: spectatorName,
         isSpectator: true,
@@ -140,36 +215,32 @@ io.on('connection', (socket) => {
 
       io.to(code).emit('spectator-update', {
         spectatorCount: room.spectators.length,
-        message: `${spectatorName} joined as spectator.`
+        message: `${spectatorName} joined as spectator.`,
+        roomState: getPublicRoomState(room)
       });
     }
   });
 
-  // Make Move
+  // TIC-TAC-TOE: Make Move
   socket.on('make-move', ({ index }) => {
     if (!currentRoomCode) return;
     const room = rooms.get(currentRoomCode);
-    if (!room || room.status !== 'playing') return;
+    if (!room || room.status !== 'playing' || room.gameType !== 'tictactoe') return;
 
     const player = room.players.find(p => p.id === socket.id);
     if (!player) return;
 
-    // Must be this player's turn
     if (player.symbol !== room.currentTurn) {
       socket.emit('error-message', { message: "It's not your turn!" });
       return;
     }
 
-    // Must be valid cell and empty
     if (index < 0 || index > 8 || room.board[index] !== null) {
       socket.emit('error-message', { message: 'Invalid move!' });
       return;
     }
 
-    // Place symbol
     room.board[index] = player.symbol;
-
-    // Check for win/draw
     const result = checkWinner(room.board);
 
     if (result) {
@@ -193,14 +264,80 @@ io.on('connection', (socket) => {
         roomState: getPublicRoomState(room)
       });
     } else {
-      // Toggle turn
       room.currentTurn = room.currentTurn === 'X' ? 'O' : 'X';
 
       io.to(currentRoomCode).emit('move-made', {
         index,
         symbol: player.symbol,
         nextTurn: room.currentTurn,
-        board: room.board
+        board: room.board,
+        roomState: getPublicRoomState(room)
+      });
+    }
+  });
+
+  // DOTS AND BOXES: Draw Line Move
+  socket.on('dots-move-line', ({ lineId }) => {
+    if (!currentRoomCode) return;
+    const room = rooms.get(currentRoomCode);
+    if (!room || room.status !== 'playing' || room.gameType !== 'dots') return;
+
+    const player = room.players.find(p => p.id === socket.id);
+    if (!player) return;
+
+    if (player.symbol !== room.currentTurn) {
+      socket.emit('error-message', { message: "It's not your turn!" });
+      return;
+    }
+
+    if (!lineId || room.lines[lineId]) {
+      socket.emit('error-message', { message: 'This line is already drawn!' });
+      return;
+    }
+
+    // Claim line
+    room.lines[lineId] = player.symbol;
+
+    // Check completed boxes
+    const newBoxes = checkNewlyCompletedBoxes(room.lines, room.rows, room.cols, room.boxes);
+
+    newBoxes.forEach(boxId => {
+      room.boxes[boxId] = player.symbol;
+      room.scores[player.symbol]++;
+      player.score++;
+    });
+
+    const totalBoxes = room.rows * room.cols;
+    const totalClaimed = Object.keys(room.boxes).length;
+
+    if (totalClaimed === totalBoxes) {
+      room.status = 'ended';
+      if (room.scores.P1 > room.scores.P2) room.winner = 'P1';
+      else if (room.scores.P2 > room.scores.P1) room.winner = 'P2';
+      else room.winner = 'draw';
+
+      io.to(currentRoomCode).emit('dots-game-over', {
+        lineId,
+        symbol: player.symbol,
+        newBoxes,
+        winner: room.winner,
+        scores: room.scores,
+        roomState: getPublicRoomState(room)
+      });
+    } else {
+      // If completed at least one box, player gets an extra turn!
+      const gotExtraTurn = newBoxes.length > 0;
+      if (!gotExtraTurn) {
+        room.currentTurn = room.currentTurn === 'P1' ? 'P2' : 'P1';
+      }
+
+      io.to(currentRoomCode).emit('dots-move-made', {
+        lineId,
+        symbol: player.symbol,
+        newBoxes,
+        nextTurn: room.currentTurn,
+        gotExtraTurn,
+        roomState: getPublicRoomState(room)
       });
     }
   });
@@ -216,23 +353,29 @@ io.on('connection', (socket) => {
 
     room.rematchVotes.add(socket.id);
 
-    // If both players have voted for rematch
     if (room.rematchVotes.size >= 2) {
-      room.board = Array(9).fill(null);
       room.status = 'playing';
       room.winner = null;
-      room.winningLine = null;
       room.rematchVotes.clear();
-      // Alternate starting player each round
-      room.startingTurn = room.startingTurn === 'X' ? 'O' : 'X';
-      room.currentTurn = room.startingTurn;
+
+      if (room.gameType === 'tictactoe') {
+        room.board = Array(9).fill(null);
+        room.winningLine = null;
+        room.startingTurn = room.startingTurn === 'X' ? 'O' : 'X';
+        room.currentTurn = room.startingTurn;
+      } else {
+        room.lines = {};
+        room.boxes = {};
+        room.startingTurn = room.startingTurn === 'P1' ? 'P2' : 'P1';
+        room.currentTurn = room.startingTurn;
+      }
 
       io.to(currentRoomCode).emit('rematch-start', {
         message: 'Rematch accepted! Starting new round...',
+        gameType: room.gameType,
         roomState: getPublicRoomState(room)
       });
     } else {
-      // Notify opponent that rematch was requested
       socket.to(currentRoomCode).emit('rematch-requested', {
         playerName: player.name
       });
@@ -258,7 +401,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Handle Disconnect
+  // Disconnect / Leave
   socket.on('disconnect', () => {
     if (!currentRoomCode) return;
     const room = rooms.get(currentRoomCode);
@@ -268,10 +411,8 @@ io.on('connection', (socket) => {
 
     if (playerIndex !== -1) {
       const leavingPlayer = room.players[playerIndex];
-      // Remove player
       room.players.splice(playerIndex, 1);
 
-      // If spectators exist, promote first spectator to player
       if (room.spectators.length > 0) {
         const nextPlayer = room.spectators.shift();
         room.players.push({
@@ -287,14 +428,18 @@ io.on('connection', (socket) => {
           roomState: getPublicRoomState(room)
         });
       } else {
-        // No players left or only 1 player remaining
         if (room.players.length === 0) {
           rooms.delete(currentRoomCode);
         } else {
           room.status = 'waiting';
-          room.board = Array(9).fill(null);
+          if (room.gameType === 'tictactoe') {
+            room.board = Array(9).fill(null);
+            room.winningLine = null;
+          } else {
+            room.lines = {};
+            room.boxes = {};
+          }
           room.winner = null;
-          room.winningLine = null;
           room.rematchVotes.clear();
 
           io.to(currentRoomCode).emit('player-left', {
@@ -305,12 +450,12 @@ io.on('connection', (socket) => {
         }
       }
     } else {
-      // Check if spectator disconnected
       const specIndex = room.spectators.findIndex(s => s.id === socket.id);
       if (specIndex !== -1) {
         room.spectators.splice(specIndex, 1);
         io.to(currentRoomCode).emit('spectator-update', {
-          spectatorCount: room.spectators.length
+          spectatorCount: room.spectators.length,
+          roomState: getPublicRoomState(room)
         });
       }
     }
@@ -318,19 +463,37 @@ io.on('connection', (socket) => {
 });
 
 function getPublicRoomState(room) {
-  return {
+  const state = {
     code: room.code,
+    gameType: room.gameType,
     players: room.players.map(p => ({ name: p.name, symbol: p.symbol, score: p.score })),
     spectatorsCount: room.spectators.length,
-    board: room.board,
     currentTurn: room.currentTurn,
     status: room.status,
     winner: room.winner,
-    winningLine: room.winningLine,
     scores: room.scores
   };
+
+  if (room.gameType === 'tictactoe') {
+    state.board = room.board;
+    state.winningLine = room.winningLine;
+  } else {
+    state.rows = room.rows;
+    state.cols = room.cols;
+    state.lines = room.lines;
+    state.boxes = room.boxes;
+  }
+
+  return state;
 }
 
-server.listen(PORT, () => {
-  console.log(`⚡ Tic-Tac-Toe Server running at http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  const ips = getNetworkIps();
+  console.log(`\n======================================================`);
+  console.log(`⚡ Game Arcade Server running on port ${PORT}`);
+  console.log(`   - Local:    http://localhost:${PORT}`);
+  ips.forEach(ip => {
+    console.log(`   - Network:  http://${ip}:${PORT} (Connect from another device!)`);
+  });
+  console.log(`======================================================\n`);
 });
