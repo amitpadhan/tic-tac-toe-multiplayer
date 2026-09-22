@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tic-Tac-Toe Online | Real-Time Multiplayer Web Game</title>
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <meta name="description" content="Play Tic-Tac-Toe online in real-time with friends, vs unbeatable AI (Minimax), or local 2-player mode. Neon cyber aesthetic with sound effects.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-neon">
+  <div class="bg-glow-container">
+    <div class="glow-orb orb-1"></div>
+    <div class="glow-orb orb-2"></div>
+  </div>
+
+  <header class="app-header">
+    <div class="header-container">
+      <div class="logo">
+        <span class="logo-mark x-mark">X</span>
+        <span class="logo-title">TIC-TAC-TOE</span>
+        <span class="logo-mark o-mark">O</span>
+      </div>
+      <div class="header-controls">
+        <button id="btn-sound-toggle" class="icon-btn" title="Toggle Sound" aria-label="Toggle Sound">
+          <span id="sound-icon">🔊</span>
+        </button>
+        <button id="btn-theme-toggle" class="icon-btn" title="Toggle Theme" aria-label="Toggle Theme">
+          <span id="theme-icon">🌙</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <!-- VIEW 1: HOME / MODE SELECTOR -->
+    <section id="view-menu" class="view active">
+      <div class="menu-hero">
+        <h1 class="hero-title">NEXT-GEN <span class="neon-gradient">TIC-TAC-TOE</span></h1>
+        <p class="hero-subtitle">Play real-time online with friends, challenge the smart AI, or play locally.</p>
+      </div>
+
+      <div class="mode-cards-grid">
+        <!-- Online Multiplayer Card -->
+        <div class="mode-card online-card">
+          <div class="card-badge">POPULAR</div>
+          <div class="card-icon">🌐</div>
+          <h2>Online Multiplayer</h2>
+          <p>Create a private room, share the invite code with a friend, and play in real-time with live reactions!</p>
+          <div class="card-actions">
+            <button id="btn-open-online-modal" class="btn btn-primary glow-cyan">
+              Play Online
+            </button>
+          </div>
+        </div>
+
+        <!-- AI Mode Card -->
+        <div class="mode-card ai-card">
+          <div class="card-badge">SOLO</div>
+          <div class="card-icon">🤖</div>
+          <h2>Play vs AI</h2>
+          <p>Challenge the computer. Choose from Casual, Challenging, or the Unbeatable Minimax algorithm.</p>
+          <div class="card-actions">
+            <button id="btn-open-ai-modal" class="btn btn-secondary glow-purple">
+              Play vs AI
+            </button>
+          </div>
+        </div>
+
+        <!-- Pass & Play Card -->
+        <div class="mode-card local-card">
+          <div class="card-badge">2 PLAYERS</div>
+          <div class="card-icon">👥</div>
+          <h2>Pass & Play</h2>
+          <p>Classic 2-player showdown on the same screen or mobile device. Perfect for local fun.</p>
+          <div class="card-actions">
+            <button id="btn-start-local" class="btn btn-outline glow-pink">
+              Pass & Play
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MODAL: ONLINE MULTIPLAYER SETUP -->
+    <div id="modal-online" class="modal-overlay hidden">
+      <div class="modal-card">
+        <button class="modal-close" data-close="modal-online" aria-label="Close modal">&times;</button>
+        <h3 class="modal-title">🌐 Online Multiplayer</h3>
+        
+        <div class="form-group">
+          <label for="online-player-name">Your Display Name</label>
+          <input type="text" id="online-player-name" placeholder="e.g. MasterX" maxlength="14" value="Player 1">
+        </div>
+
+        <div class="online-tabs">
+          <button id="tab-create-room" class="tab-btn active">Create Room</button>
+          <button id="tab-join-room" class="tab-btn">Join Room</button>
+        </div>
+
+        <!-- Tab 1: Create -->
+        <div id="panel-create-room" class="tab-panel active">
+          <p class="tab-hint">Create a new private lobby and invite your friend.</p>
+          <button id="btn-create-room-submit" class="btn btn-primary full-width glow-cyan">
+            🚀 Create Room
+          </button>
+        </div>
+
+        <!-- Tab 2: Join -->
+        <div id="panel-join-room" class="tab-panel hidden">
+          <p class="tab-hint">Enter the 6-character room code from your friend.</p>
+          <div class="form-group">
+            <input type="text" id="join-room-code" placeholder="ROOM CODE (e.g. ABCD99)" maxlength="6" class="code-input">
+          </div>
+          <button id="btn-join-room-submit" class="btn btn-primary full-width glow-cyan">
+            🔗 Join Match
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: AI GAME SETUP -->
+    <div id="modal-ai" class="modal-overlay hidden">
+      <div class="modal-card">
+        <button class="modal-close" data-close="modal-ai" aria-label="Close modal">&times;</button>
+        <h3 class="modal-title">🤖 Play Against AI</h3>
+
+        <div class="form-group">
+          <label>Difficulty Level</label>
+          <div class="segmented-control" id="ai-difficulty-control">
+            <button class="segment-btn" data-diff="easy">Easy</button>
+            <button class="segment-btn" data-diff="medium">Medium</button>
+            <button class="segment-btn active" data-diff="unbeatable">Master</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Choose Your Symbol</label>
+          <div class="segmented-control" id="ai-symbol-control">
+            <button class="segment-btn active" data-symbol="X">Play as X (First)</button>
+            <button class="segment-btn" data-symbol="O">Play as O (Second)</button>
+          </div>
+        </div>
+
+        <button id="btn-start-ai-game" class="btn btn-secondary full-width glow-purple">
+          ⚔️ Start Challenge
+        </button>
+      </div>
+    </div>
+
+    <!-- VIEW 2: GAME ARENA -->
+    <section id="view-game" class="view hidden">
+      <!-- Game Top Info Bar -->
+      <div class="game-header">
+        <button id="btn-back-menu" class="btn btn-sm btn-outline">
+          ← Menu
+        </button>
+        <div class="mode-indicator" id="game-mode-tag">
+          Pass & Play
+        </div>
+        <div class="room-pill hidden" id="room-code-badge" title="Click to copy link">
+          Room: <span id="display-room-code">------</span>
+          <span class="copy-icon">📋</span>
+        </div>
+      </div>
+
+      <!-- Online Waiting Screen (when waiting for opponent) -->
+      <div id="waiting-lobby" class="waiting-box hidden">
+        <div class="waiting-spinner"></div>
+        <h3>Waiting for opponent to join...</h3>
+        <p>Share this 6-character room code or link:</p>
+        <div class="share-box">
+          <span class="share-code" id="lobby-code-display">------</span>
+          <button id="btn-copy-code" class="btn btn-sm btn-secondary">Copy Code</button>
+          <button id="btn-copy-link" class="btn btn-sm btn-primary">Copy Link</button>
+        </div>
+        <div class="waiting-hint">Game will automatically start as soon as Player 2 connects!</div>
+      </div>
+
+      <!-- Scoreboard -->
+      <div class="scoreboard-container" id="scoreboard-section">
+        <div class="score-card score-x" id="player-x-card">
+          <div class="player-avatar x-avatar">X</div>
+          <div class="player-meta">
+            <div class="player-name" id="name-x">Player 1</div>
+            <div class="player-role" id="role-x">Host</div>
+          </div>
+          <div class="player-score" id="score-x-val">0</div>
+        </div>
+
+        <div class="score-card score-ties">
+          <div class="player-meta">
+            <div class="player-name">DRAWS</div>
+          </div>
+          <div class="player-score" id="score-draws-val">0</div>
+        </div>
+
+        <div class="score-card score-o" id="player-o-card">
+          <div class="player-avatar o-avatar">O</div>
+          <div class="player-meta">
+            <div class="player-name" id="name-o">Player 2</div>
+            <div class="player-role" id="role-o">Guest</div>
+          </div>
+          <div class="player-score" id="score-o-val">0</div>
+        </div>
+      </div>
+
+      <!-- Turn & Status Notification -->
+      <div class="status-banner" id="status-banner">
+        <span id="turn-icon" class="status-icon x-mark">X</span>
+        <span id="status-text">Player X's Turn</span>
+      </div>
+
+      <!-- TIC-TAC-TOE BOARD -->
+      <div class="board-wrapper">
+        <div class="board-grid" id="board-grid">
+          <!-- 9 Interactive Cells -->
+          <button class="board-cell" data-index="0" aria-label="Cell 1"></button>
+          <button class="board-cell" data-index="1" aria-label="Cell 2"></button>
+          <button class="board-cell" data-index="2" aria-label="Cell 3"></button>
+          <button class="board-cell" data-index="3" aria-label="Cell 4"></button>
+          <button class="board-cell" data-index="4" aria-label="Cell 5"></button>
+          <button class="board-cell" data-index="5" aria-label="Cell 6"></button>
+          <button class="board-cell" data-index="6" aria-label="Cell 7"></button>
+          <button class="board-cell" data-index="7" aria-label="Cell 8"></button>
+          <button class="board-cell" data-index="8" aria-label="Cell 9"></button>
+          
+          <!-- Strike Line SVG Overlay -->
+          <svg class="strike-overlay" id="strike-overlay" viewBox="0 0 300 300">
+            <line id="strike-line" x1="0" y1="0" x2="0" y2="0" stroke="#00ffcc" stroke-width="8" stroke-linecap="round" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Game Actions -->
+      <div class="game-footer-actions">
+        <button id="btn-rematch" class="btn btn-primary glow-cyan">
+          🔄 Play Again
+        </button>
+        <button id="btn-reset-scores" class="btn btn-outline">
+          Reset Scores
+        </button>
+      </div>
+
+      <!-- Multiplayer Reactions Bar -->
+      <div id="reactions-bar" class="reactions-bar hidden">
+        <span class="reaction-label">Quick Reactions:</span>
+        <div class="emoji-tray">
+          <button class="emoji-btn" data-emoji="🔥" title="Fire">🔥</button>
+          <button class="emoji-btn" data-emoji="👏" title="Applause">👏</button>
+          <button class="emoji-btn" data-emoji="😂" title="Laugh">😂</button>
+          <button class="emoji-btn" data-emoji="😮" title="Shocked">😮</button>
+          <button class="emoji-btn" data-emoji="💀" title="Dead">💀</button>
+          <button class="emoji-btn" data-emoji="🤝" title="Good Game">🤝 GG</button>
+        </div>
+      </div>
+
+      <!-- Reaction Toast Stream -->
+      <div id="reaction-stream" class="reaction-stream"></div>
+    </section>
+  </main>
+
+  <!-- Notification Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Socket.io client (served automatically by the backend server) -->
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- Audio & Confetti helper scripts -->
+  <script src="js/sound.js"></script>
+  <script src="js/confetti.js"></script>
+  <!-- Main Game Logic -->
+  <script src="js/app.js"></script>
+</body>
+</html>

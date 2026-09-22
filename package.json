@@ -1,0 +1,28 @@
+{
+  "name": "tic-tac-toe-multiplayer",
+  "version": "1.0.0",
+  "description": "Modern Real-Time Multiplayer Tic-Tac-Toe Web Game with Socket.IO, Minimax AI, Sound FX & Responsive Neon UI",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "tic-tac-toe",
+    "multiplayer",
+    "socket.io",
+    "websockets",
+    "game",
+    "minimax-ai",
+    "javascript"
+  ],
+  "author": "Amit Padhan",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
