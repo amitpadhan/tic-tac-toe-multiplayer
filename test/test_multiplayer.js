@@ -1,185 +1,232 @@
 const { io } = require('socket.io-client');
 const assert = require('assert');
+const { spawn } = require('child_process');
+const http = require('http');
+const path = require('path');
 
-const SERVER_URL = 'http://localhost:3000';
+const PORT = 3000;
+const SERVER_URL = `http://localhost:${PORT}`;
 
-async function runTests() {
-  console.log('🧪 Starting Multiplayer Connection & Game Tests...\n');
-
-  // ----------------------------------------------------
-  // TEST 1: Tic-Tac-Toe Cross-Device Connection with Code
-  // ----------------------------------------------------
-  console.log('--- TEST 1: Tic-Tac-Toe Device A (Host) & Device B (Guest) ---');
-  await new Promise((resolve, reject) => {
-    const deviceA = io(SERVER_URL);
-    const deviceB = io(SERVER_URL);
-    let sharedRoomCode = null;
-
-    deviceA.on('connect', () => {
-      console.log('Device A connected. Creating Tic-Tac-Toe room...');
-      deviceA.emit('create-room', { playerName: 'DeviceA_Host', gameType: 'tictactoe' });
+function isServerRunning() {
+  return new Promise((resolve) => {
+    const req = http.get(`${SERVER_URL}/health`, (res) => {
+      resolve(res.statusCode === 200);
     });
-
-    deviceA.on('room-created', ({ roomCode, playerSymbol, gameType }) => {
-      console.log(`✓ Device A created room: ${roomCode}, Symbol: ${playerSymbol}, Game: ${gameType}`);
-      assert.strictEqual(playerSymbol, 'X');
-      assert.strictEqual(gameType, 'tictactoe');
-      sharedRoomCode = roomCode;
-
-      // Device B joins with lowercase and spacing to test sanitization
-      console.log(`Device B joining with formatted code " ${roomCode.toLowerCase()} "...`);
-      deviceB.emit('join-room', {
-        roomCode: ` ${roomCode.toLowerCase()} `,
-        playerName: 'DeviceB_Guest'
-      });
+    req.on('error', () => resolve(false));
+    req.setTimeout(500, () => {
+      req.destroy();
+      resolve(false);
     });
+  });
+}
 
-    deviceB.on('room-joined', ({ roomCode, playerSymbol, gameType }) => {
-      console.log(`✓ Device B joined room: ${roomCode}, Symbol: ${playerSymbol}, Game: ${gameType}`);
-      assert.strictEqual(playerSymbol, 'O');
-      assert.strictEqual(gameType, 'tictactoe');
-    });
+function delay(ms) {
+  return new Promise((res) => setTimeout(res, ms));
+}
 
-    let gameStartedCount = 0;
-    const checkGameStarted = () => {
-      gameStartedCount++;
-      if (gameStartedCount === 2) {
-        console.log('✓ Both devices received game-started event!');
-        // Device A makes first move
-        deviceA.emit('make-move', { index: 4 }); // Center
-      }
-    };
+async function ensureServerRunning() {
+  const running = await isServerRunning();
+  if (running) {
+    console.log('Server is already running on port', PORT);
+    return null;
+  }
 
-    deviceA.on('game-started', checkGameStarted);
-    deviceB.on('game-started', checkGameStarted);
-
-    deviceB.on('move-made', ({ index, symbol, nextTurn, board }) => {
-      console.log(`✓ Device B received Device A's move: index ${index}, symbol ${symbol}, nextTurn ${nextTurn}`);
-      assert.strictEqual(index, 4);
-      assert.strictEqual(symbol, 'X');
-      assert.strictEqual(nextTurn, 'O');
-      assert.strictEqual(board[4], 'X');
-
-      deviceA.disconnect();
-      deviceB.disconnect();
-      console.log('✓ TEST 1 PASSED!\n');
-      resolve();
-    });
-
-    setTimeout(() => reject(new Error('Test 1 timed out')), 6000);
+  console.log('Starting local test server on port', PORT, '...');
+  const serverProcess = spawn('node', [path.join(__dirname, '../server.js')], {
+    stdio: 'ignore'
   });
 
-  // ----------------------------------------------------
-  // TEST 2: Dots & Boxes Cross-Device Connection with Code
-  // ----------------------------------------------------
-  console.log('--- TEST 2: Dots & Boxes Device A (Host) & Device B (Guest) ---');
-  await new Promise((resolve, reject) => {
-    const deviceA = io(SERVER_URL);
-    const deviceB = io(SERVER_URL);
+  // Wait for server to respond
+  for (let i = 0; i < 20; i++) {
+    await delay(250);
+    if (await isServerRunning()) {
+      console.log('Test server is ready!\n');
+      return serverProcess;
+    }
+  }
 
-    deviceA.on('connect', () => {
-      console.log('Device A connected. Creating Dots & Boxes room (3x3)...');
-      deviceA.emit('create-room', {
-        playerName: 'Dots_Host',
-        gameType: 'dots',
-        config: { rows: 3, cols: 3 }
+  throw new Error('Failed to start test server within 5 seconds.');
+}
+
+async function runTests() {
+  const spawnedServer = await ensureServerRunning();
+
+  try {
+    console.log('🧪 Starting Multiplayer Connection & Game Tests...\n');
+
+    // ----------------------------------------------------
+    // TEST 1: Tic-Tac-Toe Cross-Device Connection with Code
+    // ----------------------------------------------------
+    console.log('--- TEST 1: Tic-Tac-Toe Device A (Host) & Device B (Guest) ---');
+    await new Promise((resolve, reject) => {
+      const deviceA = io(SERVER_URL);
+      const deviceB = io(SERVER_URL);
+
+      deviceA.on('connect', () => {
+        console.log('Device A connected. Creating Tic-Tac-Toe room...');
+        deviceA.emit('create-room', { playerName: 'DeviceA_Host', gameType: 'tictactoe' });
       });
-    });
 
-    deviceA.on('room-created', ({ roomCode, playerSymbol, gameType, roomState }) => {
-      console.log(`✓ Device A created Dots room: ${roomCode}, Symbol: ${playerSymbol}`);
-      assert.strictEqual(playerSymbol, 'P1');
-      assert.strictEqual(gameType, 'dots');
-      assert.strictEqual(roomState.rows, 3);
-      assert.strictEqual(roomState.cols, 3);
+      deviceA.on('room-created', ({ roomCode, playerSymbol, gameType }) => {
+        console.log(`✓ Device A created room: ${roomCode}, Symbol: ${playerSymbol}, Game: ${gameType}`);
+        assert.strictEqual(playerSymbol, 'X');
+        assert.strictEqual(gameType, 'tictactoe');
 
-      deviceB.emit('join-room', {
-        roomCode,
-        playerName: 'Dots_Guest'
+        // Device B joins with lowercase and spacing to test sanitization
+        console.log(`Device B joining with formatted code " ${roomCode.toLowerCase()} "...`);
+        deviceB.emit('join-room', {
+          roomCode: ` ${roomCode.toLowerCase()} `,
+          playerName: 'DeviceB_Guest'
+        });
       });
-    });
 
-    deviceB.on('room-joined', ({ playerSymbol, gameType }) => {
-      console.log(`✓ Device B joined Dots room. Symbol: ${playerSymbol}`);
-      assert.strictEqual(playerSymbol, 'P2');
-      assert.strictEqual(gameType, 'dots');
-    });
+      deviceB.on('room-joined', ({ roomCode, playerSymbol, gameType }) => {
+        console.log(`✓ Device B joined room: ${roomCode}, Symbol: ${playerSymbol}, Game: ${gameType}`);
+        assert.strictEqual(playerSymbol, 'O');
+        assert.strictEqual(gameType, 'tictactoe');
+      });
 
-    let gameStartedCount = 0;
-    const checkGameStarted = () => {
-      gameStartedCount++;
-      if (gameStartedCount === 2) {
-        console.log('✓ Both devices ready for Dots & Boxes!');
-        // Step 1: P1 draws h-0-0
-        deviceA.emit('dots-move-line', { lineId: 'h-0-0' });
-      }
-    };
+      let gameStartedCount = 0;
+      const checkGameStarted = () => {
+        gameStartedCount++;
+        if (gameStartedCount === 2) {
+          console.log('✓ Both devices received game-started event!');
+          deviceA.emit('make-move', { index: 4 }); // Center
+        }
+      };
 
-    deviceA.on('game-started', checkGameStarted);
-    deviceB.on('game-started', checkGameStarted);
+      deviceA.on('game-started', checkGameStarted);
+      deviceB.on('game-started', checkGameStarted);
 
-    deviceB.on('dots-move-made', ({ lineId, symbol, nextTurn, gotExtraTurn }) => {
-      if (lineId === 'h-0-0') {
-        console.log(`✓ Line ${lineId} drawn by ${symbol}. Next turn: ${nextTurn}, Extra turn: ${gotExtraTurn}`);
-        assert.strictEqual(symbol, 'P1');
-        assert.strictEqual(nextTurn, 'P2');
-        assert.strictEqual(gotExtraTurn, false);
-
-        // Step 2: P2 draws v-0-0
-        deviceB.emit('dots-move-line', { lineId: 'v-0-0' });
-      } else if (lineId === 'v-0-0') {
-        console.log(`✓ Line ${lineId} drawn by ${symbol}. Next turn: ${nextTurn}`);
-        assert.strictEqual(symbol, 'P2');
-        assert.strictEqual(nextTurn, 'P1');
-
-        // Step 3: P1 draws h-1-0
-        deviceA.emit('dots-move-line', { lineId: 'h-1-0' });
-      } else if (lineId === 'h-1-0') {
-        console.log(`✓ Line ${lineId} drawn by ${symbol}. Next turn: ${nextTurn}`);
-        assert.strictEqual(symbol, 'P1');
-        assert.strictEqual(nextTurn, 'P2');
-
-        // Step 4: P2 draws v-0-1 -> Completes Box b-0-0!
-        deviceB.emit('dots-move-line', { lineId: 'v-0-1' });
-      } else if (lineId === 'v-0-1') {
-        console.log(`✓ Line ${lineId} drawn by ${symbol}. Box completed:`, nextTurn, 'gotExtraTurn:', gotExtraTurn);
-        assert.strictEqual(symbol, 'P2');
-        assert.strictEqual(gotExtraTurn, true);
-        assert.strictEqual(nextTurn, 'P2'); // P2 gets BONUS TURN!
-        console.log('✓ Bonus turn correctly awarded to completing player!');
+      deviceB.on('move-made', ({ index, symbol, nextTurn, board }) => {
+        console.log(`✓ Device B received Device A's move: index ${index}, symbol ${symbol}, nextTurn ${nextTurn}`);
+        assert.strictEqual(index, 4);
+        assert.strictEqual(symbol, 'X');
+        assert.strictEqual(nextTurn, 'O');
+        assert.strictEqual(board[4], 'X');
 
         deviceA.disconnect();
         deviceB.disconnect();
-        console.log('✓ TEST 2 PASSED!\n');
+        console.log('✓ TEST 1 PASSED!\n');
         resolve();
-      }
+      });
+
+      setTimeout(() => reject(new Error('Test 1 timed out')), 6000);
     });
 
-    setTimeout(() => reject(new Error('Test 2 timed out')), 6000);
-  });
+    // ----------------------------------------------------
+    // TEST 2: Dots & Boxes Cross-Device Connection with Code
+    // ----------------------------------------------------
+    console.log('--- TEST 2: Dots & Boxes Device A (Host) & Device B (Guest) ---');
+    await new Promise((resolve, reject) => {
+      const deviceA = io(SERVER_URL);
+      const deviceB = io(SERVER_URL);
 
-  // ----------------------------------------------------
-  // TEST 3: Invalid Room Code & Error Handling
-  // ----------------------------------------------------
-  console.log('--- TEST 3: Invalid Room Code Error Handling ---');
-  await new Promise((resolve, reject) => {
-    const client = io(SERVER_URL);
-    client.on('connect', () => {
-      client.emit('join-room', { roomCode: 'FAKEXX', playerName: 'LostPlayer' });
+      deviceA.on('connect', () => {
+        console.log('Device A connected. Creating Dots & Boxes room (3x3)...');
+        deviceA.emit('create-room', {
+          playerName: 'Dots_Host',
+          gameType: 'dots',
+          config: { rows: 3, cols: 3 }
+        });
+      });
+
+      deviceA.on('room-created', ({ roomCode, playerSymbol, gameType, roomState }) => {
+        console.log(`✓ Device A created Dots room: ${roomCode}, Symbol: ${playerSymbol}`);
+        assert.strictEqual(playerSymbol, 'P1');
+        assert.strictEqual(gameType, 'dots');
+        assert.strictEqual(roomState.rows, 3);
+        assert.strictEqual(roomState.cols, 3);
+
+        deviceB.emit('join-room', {
+          roomCode,
+          playerName: 'Dots_Guest'
+        });
+      });
+
+      deviceB.on('room-joined', ({ playerSymbol, gameType }) => {
+        console.log(`✓ Device B joined Dots room. Symbol: ${playerSymbol}`);
+        assert.strictEqual(playerSymbol, 'P2');
+        assert.strictEqual(gameType, 'dots');
+      });
+
+      let gameStartedCount = 0;
+      const checkGameStarted = () => {
+        gameStartedCount++;
+        if (gameStartedCount === 2) {
+          console.log('✓ Both devices ready for Dots & Boxes!');
+          deviceA.emit('dots-move-line', { lineId: 'h-0-0' });
+        }
+      };
+
+      deviceA.on('game-started', checkGameStarted);
+      deviceB.on('game-started', checkGameStarted);
+
+      deviceB.on('dots-move-made', ({ lineId, symbol, nextTurn, gotExtraTurn }) => {
+        if (lineId === 'h-0-0') {
+          console.log(`✓ Line ${lineId} drawn by ${symbol}. Next turn: ${nextTurn}`);
+          assert.strictEqual(symbol, 'P1');
+          assert.strictEqual(nextTurn, 'P2');
+          assert.strictEqual(gotExtraTurn, false);
+
+          deviceB.emit('dots-move-line', { lineId: 'v-0-0' });
+        } else if (lineId === 'v-0-0') {
+          console.log(`✓ Line ${lineId} drawn by ${symbol}. Next turn: ${nextTurn}`);
+          assert.strictEqual(symbol, 'P2');
+          assert.strictEqual(nextTurn, 'P1');
+
+          deviceA.emit('dots-move-line', { lineId: 'h-1-0' });
+        } else if (lineId === 'h-1-0') {
+          console.log(`✓ Line ${lineId} drawn by ${symbol}. Next turn: ${nextTurn}`);
+          assert.strictEqual(symbol, 'P1');
+          assert.strictEqual(nextTurn, 'P2');
+
+          deviceB.emit('dots-move-line', { lineId: 'v-0-1' });
+        } else if (lineId === 'v-0-1') {
+          console.log(`✓ Line ${lineId} drawn by ${symbol}. Box completed:`, nextTurn, 'gotExtraTurn:', gotExtraTurn);
+          assert.strictEqual(symbol, 'P2');
+          assert.strictEqual(gotExtraTurn, true);
+          assert.strictEqual(nextTurn, 'P2'); // Extra turn awarded!
+          console.log('✓ Bonus turn correctly awarded to completing player!');
+
+          deviceA.disconnect();
+          deviceB.disconnect();
+          console.log('✓ TEST 2 PASSED!\n');
+          resolve();
+        }
+      });
+
+      setTimeout(() => reject(new Error('Test 2 timed out')), 6000);
     });
 
-    client.on('error-message', ({ message }) => {
-      console.log(`✓ Received expected error message: "${message}"`);
-      assert(message.includes('not found'));
-      client.disconnect();
-      console.log('✓ TEST 3 PASSED!\n');
-      resolve();
+    // ----------------------------------------------------
+    // TEST 3: Invalid Room Code Error Handling
+    // ----------------------------------------------------
+    console.log('--- TEST 3: Invalid Room Code Error Handling ---');
+    await new Promise((resolve, reject) => {
+      const client = io(SERVER_URL);
+      client.on('connect', () => {
+        client.emit('join-room', { roomCode: 'FAKEXX', playerName: 'LostPlayer' });
+      });
+
+      client.on('error-message', ({ message }) => {
+        console.log(`✓ Received expected error message: "${message}"`);
+        assert(message.includes('not found'));
+        client.disconnect();
+        console.log('✓ TEST 3 PASSED!\n');
+        resolve();
+      });
+
+      setTimeout(() => reject(new Error('Test 3 timed out')), 4000);
     });
 
-    setTimeout(() => reject(new Error('Test 3 timed out')), 4000);
-  });
-
-  console.log('🎉 ALL MULTIPLAYER & GAME INTEGRATION TESTS PASSED SUCCESSFULLY!');
+    console.log('🎉 ALL MULTIPLAYER & GAME INTEGRATION TESTS PASSED SUCCESSFULLY!');
+  } finally {
+    if (spawnedServer) {
+      console.log('Stopping test server...');
+      spawnedServer.kill('SIGTERM');
+    }
+  }
 }
 
 runTests().then(() => {
