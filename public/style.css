@@ -1081,23 +1081,24 @@ body.theme-light .segmented-control {
   aspect-ratio: 1 / 1;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
-  gap: clamp(8px, 2.2vw, 12px);
+  gap: clamp(7px, 2vw, 10px);
   background: var(--bg-card-solid);
-  padding: clamp(10px, 2.5vw, 14px);
+  padding: clamp(9px, 2.2vw, 13px);
   border-radius: var(--radius-xl);
-  border: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 2px solid var(--border-medium);
+  box-shadow: var(--shadow-lg), 0 0 25px rgba(99, 102, 241, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   box-sizing: border-box;
 }
 
 body.theme-light .board-grid {
   background: #f1f5f9;
-  box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  border-color: rgba(15, 23, 42, 0.18);
+  box-shadow: var(--shadow-lg), 0 4px 20px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .board-cell {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  background: rgba(18, 24, 38, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.22);
   border-radius: var(--radius-md);
   cursor: pointer;
   display: flex;
@@ -1108,22 +1109,30 @@ body.theme-light .board-grid {
   user-select: none;
   outline: none;
   padding: 0;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   width: 100%;
   height: 100%;
 }
 
+body.theme-light .board-cell {
+  background: #ffffff;
+  border: 2px solid rgba(15, 23, 42, 0.2);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
 .board-cell:hover:not(.occupied):not(:disabled) {
-  background: var(--bg-card-hover);
-  border-color: var(--border-medium);
+  background: rgba(28, 36, 56, 0.95);
+  border-color: rgba(255, 255, 255, 0.55);
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 12px rgba(99, 102, 241, 0.25);
 }
 
 body.theme-light .board-cell:hover:not(.occupied):not(:disabled) {
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  background: #f8fafc;
+  border-color: var(--x-color);
+  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.15);
 }
 
 .board-cell.occupied {
@@ -1133,24 +1142,28 @@ body.theme-light .board-cell:hover:not(.occupied):not(:disabled) {
 .board-cell.cell-x {
   color: var(--x-color);
   background: var(--x-bg-subtle);
-  border-color: var(--x-border-subtle);
+  border-color: rgba(99, 102, 241, 0.55);
+  box-shadow: 0 0 14px rgba(99, 102, 241, 0.2);
 }
 
 .board-cell.cell-o {
   color: var(--o-color);
   background: var(--o-bg-subtle);
-  border-color: var(--o-border-subtle);
+  border-color: rgba(244, 63, 94, 0.55);
+  box-shadow: 0 0 14px rgba(244, 63, 94, 0.2);
 }
 
 .board-cell.cell-win {
-  background: rgba(255, 255, 255, 0.12) !important;
-  border-color: rgba(255, 255, 255, 0.4) !important;
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-color: #ffffff !important;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.4) !important;
   animation: pulseWin 1.4s ease-in-out infinite alternate;
 }
 
 body.theme-light .board-cell.cell-win {
-  background: rgba(0, 0, 0, 0.06) !important;
-  border-color: rgba(0, 0, 0, 0.3) !important;
+  background: rgba(0, 0, 0, 0.08) !important;
+  border-color: rgba(0, 0, 0, 0.5) !important;
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.2) !important;
 }
 
 @keyframes pulseWin {
@@ -1160,8 +1173,8 @@ body.theme-light .board-cell.cell-win {
 
 /* Animated SVG marks inside cells */
 .mark-svg {
-  width: 62%;
-  height: 62%;
+  width: 72%;
+  height: 72%;
   display: block;
   overflow: visible;
   filter: drop-shadow(0 0 10px currentColor);
@@ -1174,20 +1187,20 @@ body.theme-light .board-cell.cell-win {
 }
 
 .path-x-1 {
-  stroke-dasharray: 60;
-  stroke-dashoffset: 60;
+  stroke-dasharray: 65;
+  stroke-dashoffset: 65;
   animation: drawStroke 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .path-x-2 {
-  stroke-dasharray: 60;
-  stroke-dashoffset: 60;
+  stroke-dasharray: 65;
+  stroke-dashoffset: 65;
   animation: drawStroke 0.22s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
 }
 
 .path-o {
-  stroke-dasharray: 120;
-  stroke-dashoffset: 120;
+  stroke-dasharray: 135;
+  stroke-dashoffset: 135;
   transform-origin: center;
   transform: rotate(-90deg);
   animation: drawStroke 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -1204,16 +1217,16 @@ body.theme-light .board-cell.cell-win {
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 10;
+  z-index: 20;
 }
 
 #ttt-strike-line,
 #strike-line {
   display: none;
-  stroke-width: 6.5;
+  stroke-width: 10;
   stroke-linecap: round;
-  stroke-dasharray: 400;
-  stroke-dashoffset: 400;
+  stroke-dasharray: 450;
+  stroke-dashoffset: 450;
   transition: opacity 0.2s ease;
 }
 
@@ -1223,7 +1236,7 @@ body.theme-light .board-cell.cell-win {
 }
 
 @keyframes drawStrike {
-  from { stroke-dashoffset: 400; }
+  from { stroke-dashoffset: 450; }
   to { stroke-dashoffset: 0; }
 }
 

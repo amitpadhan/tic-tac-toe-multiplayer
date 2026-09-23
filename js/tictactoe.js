@@ -10,23 +10,23 @@
   'use strict';
 
   const WINNING_COMBOS = [
-    { combo: [0, 1, 2], line: { x1: 20, y1: 50, x2: 280, y2: 50 } },    // Row 1
-    { combo: [3, 4, 5], line: { x1: 20, y1: 150, x2: 280, y2: 150 } },  // Row 2
-    { combo: [6, 7, 8], line: { x1: 20, y1: 250, x2: 280, y2: 250 } },  // Row 3
-    { combo: [0, 3, 6], line: { x1: 50, y1: 20, x2: 50, y2: 280 } },    // Col 1
-    { combo: [1, 4, 7], line: { x1: 150, y1: 20, x2: 150, y2: 280 } },  // Col 2
-    { combo: [2, 5, 8], line: { x1: 250, y1: 20, x2: 250, y2: 280 } },  // Col 3
-    { combo: [0, 4, 8], line: { x1: 30, y1: 30, x2: 270, y2: 270 } },   // Diag 1
-    { combo: [2, 4, 6], line: { x1: 270, y1: 30, x2: 30, y2: 270 } }    // Diag 2
+    { combo: [0, 1, 2], line: { x1: 18, y1: 54, x2: 282, y2: 54 } },    // Row 1
+    { combo: [3, 4, 5], line: { x1: 18, y1: 150, x2: 282, y2: 150 } },  // Row 2
+    { combo: [6, 7, 8], line: { x1: 18, y1: 246, x2: 282, y2: 246 } },  // Row 3
+    { combo: [0, 3, 6], line: { x1: 54, y1: 18, x2: 54, y2: 282 } },    // Col 1
+    { combo: [1, 4, 7], line: { x1: 150, y1: 18, x2: 150, y2: 282 } },  // Col 2
+    { combo: [2, 5, 8], line: { x1: 246, y1: 18, x2: 246, y2: 282 } },  // Col 3
+    { combo: [0, 4, 8], line: { x1: 28, y1: 28, x2: 272, y2: 272 } },   // Diag 1
+    { combo: [2, 4, 6], line: { x1: 272, y1: 28, x2: 28, y2: 272 } }    // Diag 2
   ];
 
   const SVG_MARK_X = `<svg class="mark-svg mark-x-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="X">
-    <line class="path-x-1" x1="16" y1="16" x2="48" y2="48" stroke="currentColor" stroke-width="6.5" stroke-linecap="round"/>
-    <line class="path-x-2" x1="48" y1="16" x2="16" y2="48" stroke="currentColor" stroke-width="6.5" stroke-linecap="round"/>
+    <line class="path-x-1" x1="12" y1="12" x2="52" y2="52" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
+    <line class="path-x-2" x1="52" y1="12" x2="12" y2="52" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
   </svg>`;
 
   const SVG_MARK_O = `<svg class="mark-svg mark-o-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="O">
-    <circle class="path-o" cx="32" cy="32" r="17" stroke="currentColor" stroke-width="6.5" stroke-linecap="round"/>
+    <circle class="path-o" cx="32" cy="32" r="20" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
   </svg>`;
 
   class TicTacToeController {
@@ -855,8 +855,9 @@
     }
 
     drawWinningStrike(lineCombo, winner) {
+      if (!lineCombo || !Array.isArray(lineCombo)) return;
       const match = WINNING_COMBOS.find(({ combo }) =>
-        combo.every((val, i) => val === lineCombo[i])
+        combo.every(val => lineCombo.includes(val)) && lineCombo.every(val => combo.includes(val))
       );
 
       if (match && match.line) {
@@ -865,11 +866,14 @@
         this.dom.strikeLine.setAttribute('x2', match.line.x2);
         this.dom.strikeLine.setAttribute('y2', match.line.y2);
         if (winner === 'X') {
-          this.dom.strikeLine.style.stroke = 'var(--x-color)';
-          this.dom.strikeLine.style.filter = 'drop-shadow(0 0 10px rgba(var(--x-color-rgb), 0.7))';
+          this.dom.strikeLine.style.stroke = '#818cf8';
+          this.dom.strikeLine.style.filter = 'drop-shadow(0 0 6px #ffffff) drop-shadow(0 0 12px #6366f1) drop-shadow(0 0 24px rgba(99, 102, 241, 0.9))';
         } else if (winner === 'O') {
-          this.dom.strikeLine.style.stroke = 'var(--o-color)';
-          this.dom.strikeLine.style.filter = 'drop-shadow(0 0 10px rgba(var(--o-color-rgb), 0.7))';
+          this.dom.strikeLine.style.stroke = '#fb7185';
+          this.dom.strikeLine.style.filter = 'drop-shadow(0 0 6px #ffffff) drop-shadow(0 0 12px #f43f5e) drop-shadow(0 0 24px rgba(244, 63, 94, 0.9))';
+        } else {
+          this.dom.strikeLine.style.stroke = '#ffffff';
+          this.dom.strikeLine.style.filter = 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.9))';
         }
         this.dom.strikeLine.style.display = 'block';
         this.dom.strikeLine.classList.remove('animate-strike');
@@ -996,10 +1000,10 @@
     setStatusMessage(msg, symbol) {
       this.dom.statusText.textContent = msg;
       if (symbol === 'X') {
-        this.dom.turnIcon.innerHTML = `<svg class="status-mark-svg" viewBox="0 0 24 24" fill="none"><line x1="6" y1="6" x2="18" y2="18" stroke="var(--x-color)" stroke-width="2.8" stroke-linecap="round"/><line x1="18" y1="6" x2="6" y2="18" stroke="var(--x-color)" stroke-width="2.8" stroke-linecap="round"/></svg>`;
+        this.dom.turnIcon.innerHTML = `<svg class="status-mark-svg" viewBox="0 0 24 24" fill="none"><line x1="5" y1="5" x2="19" y2="19" stroke="var(--x-color)" stroke-width="3.2" stroke-linecap="round"/><line x1="19" y1="5" x2="5" y2="19" stroke="var(--x-color)" stroke-width="3.2" stroke-linecap="round"/></svg>`;
         this.dom.turnIcon.style.display = 'inline-flex';
       } else if (symbol === 'O') {
-        this.dom.turnIcon.innerHTML = `<svg class="status-mark-svg" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="6" stroke="var(--o-color)" stroke-width="2.8"/></svg>`;
+        this.dom.turnIcon.innerHTML = `<svg class="status-mark-svg" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="7" stroke="var(--o-color)" stroke-width="3.2"/></svg>`;
         this.dom.turnIcon.style.display = 'inline-flex';
       } else {
         this.dom.turnIcon.innerHTML = '';
