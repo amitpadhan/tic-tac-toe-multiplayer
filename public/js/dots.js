@@ -281,8 +281,8 @@
         this.dom.btnResetScores.addEventListener('click', () => {
           window.soundFX.playClick();
           this.scores = { P1: 0, P2: 0 };
-          this.updateScoreboardUI();
-          window.showAppToast('Scores reset.');
+          this.resetBoardState();
+          window.showAppToast('Scores reset & board restarted.');
         });
       }
 
@@ -852,12 +852,25 @@
       }
 
       // Compute click offset relative to dot center to decide direction
+      let clickX = null;
+      let clickY = null;
+      if (typeof e.clientX === 'number' && e.clientX > 0) {
+        clickX = e.clientX;
+        clickY = e.clientY;
+      } else if (e.touches && e.touches.length > 0) {
+        clickX = e.touches[0].clientX;
+        clickY = e.touches[0].clientY;
+      } else if (e.changedTouches && e.changedTouches.length > 0) {
+        clickX = e.changedTouches[0].clientX;
+        clickY = e.changedTouches[0].clientY;
+      }
+
       const dotEl = e.currentTarget || e.target;
       const rect = dotEl.getBoundingClientRect();
-      const clickX = e.clientX ?? (e.touches && e.touches[0] ? e.touches[0].clientX : rect.left + rect.width / 2);
-      const clickY = e.clientY ?? (e.touches && e.touches[0] ? e.touches[0].clientY : rect.top + rect.height / 2);
-      const dx = clickX - (rect.left + rect.width / 2);
-      const dy = clickY - (rect.top + rect.height / 2);
+      const dotCenterX = rect.left + rect.width / 2;
+      const dotCenterY = rect.top + rect.height / 2;
+      const dx = (clickX !== null ? clickX : dotCenterX) - dotCenterX;
+      const dy = (clickY !== null ? clickY : dotCenterY) - dotCenterY;
 
       let target = null;
       if (Math.abs(dx) >= Math.abs(dy)) {
@@ -1009,8 +1022,11 @@
       if (nextTurn) {
         this.currentTurn = nextTurn;
         this.updateTurnUI();
-      } else if (gotExtraTurn) {
-        this.setStatusMessage(`Bonus Turn! 🎉`, symbol);
+      }
+      if (gotExtraTurn) {
+        const playerName = symbol === 'P1' ? this.dom.nameP1.textContent : this.dom.nameP2.textContent;
+        this.setStatusMessage(`${playerName} Completed a Box! Bonus Turn! 🎉`, symbol);
+        window.soundFX.playBonusTurn();
       }
     }
 
@@ -1023,11 +1039,11 @@
       const candidateBoxes = [];
 
       if (type === 'h') {
-        if (r > 0) candidateBoxes.push({ r: r - 1, c });
-        if (r < this.rows) candidateBoxes.push({ r, c });
+        if (r > 0 && r - 1 < this.rows && c >= 0 && c < this.cols) candidateBoxes.push({ r: r - 1, c });
+        if (r >= 0 && r < this.rows && c >= 0 && c < this.cols) candidateBoxes.push({ r, c });
       } else if (type === 'v') {
-        if (c > 0) candidateBoxes.push({ r, c: c - 1 });
-        if (c < this.cols) candidateBoxes.push({ r, c });
+        if (r >= 0 && r < this.rows && c > 0 && c - 1 < this.cols) candidateBoxes.push({ r, c: c - 1 });
+        if (r >= 0 && r < this.rows && c >= 0 && c < this.cols) candidateBoxes.push({ r, c });
       }
 
       const completed = [];
@@ -1140,11 +1156,11 @@
       const boxes = [];
 
       if (type === 'h') {
-        if (r > 0) boxes.push({ r: r - 1, c });
-        if (r < this.rows) boxes.push({ r, c });
+        if (r > 0 && r - 1 < this.rows && c >= 0 && c < this.cols) boxes.push({ r: r - 1, c });
+        if (r >= 0 && r < this.rows && c >= 0 && c < this.cols) boxes.push({ r, c });
       } else {
-        if (c > 0) boxes.push({ r, c: c - 1 });
-        if (c < this.cols) boxes.push({ r, c });
+        if (r >= 0 && r < this.rows && c > 0 && c - 1 < this.cols) boxes.push({ r, c: c - 1 });
+        if (r >= 0 && r < this.rows && c >= 0 && c < this.cols) boxes.push({ r, c });
       }
       return boxes;
     }
@@ -1288,6 +1304,9 @@
         } else {
           // Socket.IO mode: always send rematch vote to server
           window.networkManager.sendRematch();
+          this.setStatusMessage('Rematch requested. Waiting for opponent...', this.onlineState.mySymbol);
+          this.dom.btnRematch.classList.add('pulse-highlight');
+          this.dom.btnRematch.disabled = true;
         }
         return;
       }
@@ -1301,6 +1320,7 @@
         this.aiTimer = null;
       }
       this.dom.btnRematch.classList.remove('pulse-highlight');
+      this.dom.btnRematch.disabled = false;
       if (this.dom.boardContainer) this.dom.boardContainer.style.pointerEvents = 'auto';
       this.onlineState.rematchRequested = false;
       this.onlineState.opponentWantsRematch = false;
