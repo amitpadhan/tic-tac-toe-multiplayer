@@ -732,6 +732,39 @@
       boardEl.style.setProperty('--dots-rows', this.rows);
       boardEl.style.setProperty('--dots-cols', this.cols);
 
+      // Compute responsive dimensions based on grid size (from 2x2 up to 15x15)
+      let dotSize = 14;
+      let lineSize = 6;
+      let boxHeight = 72;
+      let boxFontSize = '0.95rem';
+
+      if (this.rows === 2) {
+        dotSize = 16; lineSize = 7; boxHeight = 90; boxFontSize = '1.15rem';
+      } else if (this.rows === 3) {
+        dotSize = 14; lineSize = 6; boxHeight = 72; boxFontSize = '0.95rem';
+      } else if (this.rows === 4) {
+        dotSize = 12; lineSize = 5; boxHeight = 56; boxFontSize = '0.82rem';
+      } else if (this.rows === 5) {
+        dotSize = 11; lineSize = 4.2; boxHeight = 44; boxFontSize = '0.74rem';
+      } else if (this.rows === 6) {
+        dotSize = 9.5; lineSize = 3.8; boxHeight = 36; boxFontSize = '0.64rem';
+      } else if (this.rows === 7) {
+        dotSize = 8.5; lineSize = 3.4; boxHeight = 30; boxFontSize = '0.58rem';
+      } else if (this.rows === 8) {
+        dotSize = 8; lineSize = 3.0; boxHeight = 26; boxFontSize = '0.52rem';
+      } else if (this.rows <= 10) {
+        dotSize = 7; lineSize = 2.6; boxHeight = 21; boxFontSize = '0.45rem';
+      } else if (this.rows <= 12) {
+        dotSize = 6.5; lineSize = 2.3; boxHeight = 18; boxFontSize = '0.38rem';
+      } else { // 13 - 15
+        dotSize = 5.5; lineSize = 2.0; boxHeight = 15; boxFontSize = '0.32rem';
+      }
+
+      boardEl.style.setProperty('--dot-size', `${dotSize}px`);
+      boardEl.style.setProperty('--line-size', `${lineSize}px`);
+      boardEl.style.setProperty('--box-height', `${boxHeight}px`);
+      boardEl.style.setProperty('--box-font-size', boxFontSize);
+
       // Build alternating rows
       // Total row strips: rows * 2 + 1
       for (let r = 0; r <= this.rows; r++) {
@@ -744,6 +777,12 @@
           dot.className = 'dot-node';
           dot.dataset.r = r;
           dot.dataset.c = c;
+          dot.setAttribute('role', 'button');
+          dot.setAttribute('aria-label', `Dot junction ${r}, ${c}`);
+          dot.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.handleDotClick(r, c, e);
+          });
           dotRow.appendChild(dot);
 
           if (c < this.cols) {
@@ -787,7 +826,64 @@
       this.dom.boardContainer.appendChild(boardEl);
     }
 
+    handleDotClick(r, c, e) {
+      if (!this.gameActive) return;
+
+      if (this.gameMode === 'online') {
+        if (this.onlineState.isSpectator || !this.onlineState.connected || this.currentTurn !== this.onlineState.mySymbol) {
+          return;
+        }
+      } else if (this.gameMode === 'ai') {
+        if (this.currentTurn !== this.aiConfig.playerSymbol) return;
+      }
+
+      // Collect available adjacent lines
+      const available = [];
+      if (r > 0 && !this.lines[`v-${r - 1}-${c}`]) available.push({ id: `v-${r - 1}-${c}`, dir: 'up' });
+      if (r < this.rows && !this.lines[`v-${r}-${c}`]) available.push({ id: `v-${r}-${c}`, dir: 'down' });
+      if (c > 0 && !this.lines[`h-${r}-${c - 1}`]) available.push({ id: `h-${r}-${c - 1}`, dir: 'left' });
+      if (c < this.cols && !this.lines[`h-${r}-${c}`]) available.push({ id: `h-${r}-${c}`, dir: 'right' });
+
+      if (available.length === 0) return;
+
+      if (available.length === 1) {
+        this.handleLineClick(available[0].id);
+        return;
+      }
+
+      // Compute click offset relative to dot center to decide direction
+      const dotEl = e.currentTarget || e.target;
+      const rect = dotEl.getBoundingClientRect();
+      const clickX = e.clientX ?? (e.touches && e.touches[0] ? e.touches[0].clientX : rect.left + rect.width / 2);
+      const clickY = e.clientY ?? (e.touches && e.touches[0] ? e.touches[0].clientY : rect.top + rect.height / 2);
+      const dx = clickX - (rect.left + rect.width / 2);
+      const dy = clickY - (rect.top + rect.height / 2);
+
+      let target = null;
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        if (dx >= 0) target = available.find(a => a.dir === 'right');
+        else target = available.find(a => a.dir === 'left');
+      } else {
+        if (dy >= 0) target = available.find(a => a.dir === 'down');
+        else target = available.find(a => a.dir === 'up');
+      }
+
+      if (!target) {
+        target = available[0];
+      }
+
+      if (target) {
+        this.handleLineClick(target.id);
+      }
+    }
+
     resetBoardState() {
+      if (this.aiTimer) {
+        clearTimeout(this.aiTimer);
+        this.aiTimer = null;
+      }
+      this.clearAITargetHighlight();
+      if (this.dom.boardContainer) this.dom.boardContainer.style.pointerEvents = 'auto';
       this.lines = {};
       this.boxes = {};
       this.currentTurn = this.startingTurn;
@@ -959,21 +1055,49 @@
         clearTimeout(this.aiTimer);
         this.aiTimer = null;
       }
-      this.dom.boardContainer.style.pointerEvents = 'none';
-      this.setStatusMessage('AI is thinking...', this.aiConfig.aiSymbol);
+      this.clearAITargetHighlight();
 
+      this.dom.boardContainer.style.pointerEvents = 'none';
+      const aiName = this.dom.nameP2.textContent || 'AI';
+      this.setStatusMessage(`🤖 ${aiName} is thinking...`, this.aiConfig.aiSymbol);
+
+      // Phase 1: Deliberate thinking delay (540ms)
       this.aiTimer = setTimeout(() => {
-        this.aiTimer = null;
         if (!this.gameActive || this.gameMode !== 'ai') {
           if (this.dom.boardContainer) this.dom.boardContainer.style.pointerEvents = 'auto';
           return;
         }
+
         const bestLine = this.getBestAIMove();
-        this.dom.boardContainer.style.pointerEvents = 'auto';
-        if (bestLine) {
-          this.executeMove(bestLine, this.aiConfig.aiSymbol);
+        if (!bestLine) {
+          if (this.dom.boardContainer) this.dom.boardContainer.style.pointerEvents = 'auto';
+          return;
         }
-      }, 140);
+
+        // Phase 2: Highlight selected link with bright targeting pulse (280ms)
+        const lineEl = document.getElementById(`line-${bestLine}`);
+        if (lineEl) {
+          lineEl.classList.add('ai-targeting');
+        }
+        this.setStatusMessage(`🤖 ${aiName} selected a link...`, this.aiConfig.aiSymbol);
+
+        this.aiTimer = setTimeout(() => {
+          this.aiTimer = null;
+          this.clearAITargetHighlight();
+          if (!this.gameActive || this.gameMode !== 'ai') {
+            if (this.dom.boardContainer) this.dom.boardContainer.style.pointerEvents = 'auto';
+            return;
+          }
+          if (this.dom.boardContainer) this.dom.boardContainer.style.pointerEvents = 'auto';
+          this.executeMove(bestLine, this.aiConfig.aiSymbol);
+        }, 280);
+      }, 540);
+    }
+
+    clearAITargetHighlight() {
+      document.querySelectorAll('.dot-line.ai-targeting').forEach(el => {
+        el.classList.remove('ai-targeting');
+      });
     }
 
     getAllAvailableLines() {
@@ -1085,7 +1209,10 @@
         let minDamage = Infinity;
         let bestSacrifice = sacrificeLines[0];
 
-        for (const lineId of sacrificeLines) {
+        // Sample up to 30 candidates to guarantee 60fps responsiveness on massive 15x15 grids
+        const candidates = sacrificeLines.length > 30 ? sacrificeLines.slice(0, 30) : sacrificeLines;
+
+        for (const lineId of candidates) {
           const damage = this.simulateChainDamage(lineId);
           if (damage < minDamage) {
             minDamage = damage;
@@ -1130,6 +1257,12 @@
     /* ---------------- Game Over & Rematch ---------------- */
     handleGameOver(winner) {
       this.gameActive = false;
+      if (this.aiTimer) {
+        clearTimeout(this.aiTimer);
+        this.aiTimer = null;
+      }
+      this.clearAITargetHighlight();
+      if (this.dom.boardContainer) this.dom.boardContainer.style.pointerEvents = 'auto';
 
       if (winner === 'draw') {
         this.setStatusMessage("It's a Draw!", 'draw');
@@ -1191,6 +1324,7 @@
         clearTimeout(this.aiTimer);
         this.aiTimer = null;
       }
+      this.clearAITargetHighlight();
       if (this.gameMode === 'online') {
         window.networkManager.disconnect();
       }

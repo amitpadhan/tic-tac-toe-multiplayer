@@ -239,8 +239,8 @@ io.on('connection', (socket) => {
       room.winningLine = null;
       room.scores = { X: 0, O: 0, draws: 0 };
     } else {
-      const rows = Math.min(Math.max(parseInt(config.rows, 10) || 3, 2), 5);
-      const cols = Math.min(Math.max(parseInt(config.cols, 10) || 3, 2), 5);
+      const rows = Math.min(Math.max(parseInt(config.rows, 10) || 3, 2), 15);
+      const cols = Math.min(Math.max(parseInt(config.cols, 10) || 3, 2), 15);
       room.rows = rows;
       room.cols = cols;
       room.lines = {};

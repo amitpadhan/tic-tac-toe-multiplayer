@@ -482,6 +482,54 @@ async function runTests() {
       setTimeout(() => reject(new Error('Test 9 timed out')), 6000);
     });
 
+    // ----------------------------------------------------
+    // TEST 10: Dots 15x15 Mega Arena Grid Room Creation & Boundary Validation
+    // ----------------------------------------------------
+    console.log('--- TEST 10: Dots 15x15 Mega Arena Grid Room Creation & Limits ---');
+    await new Promise((resolve, reject) => {
+      const p1 = io(SERVER_URL);
+      const p2 = io(SERVER_URL);
+
+      p1.on('connect', () => {
+        p1.emit('create-room', { playerName: 'Dots15Host', gameType: 'dots', config: { rows: 15, cols: 15 } });
+      });
+
+      p1.on('room-created', ({ roomCode }) => {
+        p2.emit('join-room', { roomCode, playerName: 'Dots15Guest' });
+      });
+
+      p2.on('game-started', ({ roomState }) => {
+        console.log(`✓ 15x15 Game started: Rows=${roomState.rows}, Cols=${roomState.cols}`);
+        assert.strictEqual(roomState.rows, 15);
+        assert.strictEqual(roomState.cols, 15);
+
+        // Test boundary corner line at bottom right: h-15-14
+        p1.emit('dots-move-line', { lineId: 'h-15-14' });
+      });
+
+      p2.on('dots-move-made', ({ lineId, symbol, nextTurn }) => {
+        if (lineId === 'h-15-14') {
+          console.log(`✓ Received valid move on 15x15 grid edge: ${lineId} by ${symbol}`);
+          assert.strictEqual(symbol, 'P1');
+          assert.strictEqual(nextTurn, 'P2');
+
+          // Guest attempts out-of-bounds line: h-16-0
+          p2.emit('dots-move-line', { lineId: 'h-16-0' });
+        }
+      });
+
+      p2.on('error-message', ({ message }) => {
+        console.log(`✓ Received expected out-of-bounds error for row 16: "${message}"`);
+        assert.strictEqual(message, 'Line coordinates out of bounds!');
+        p1.disconnect();
+        p2.disconnect();
+        console.log('✓ TEST 10 PASSED!\n');
+        resolve();
+      });
+
+      setTimeout(() => reject(new Error('Test 10 timed out')), 6000);
+    });
+
     console.log('🎉 ALL MULTIPLAYER & GAME INTEGRATION TESTS PASSED SUCCESSFULLY!');
   } finally {
     if (spawnedServer) {
