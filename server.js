@@ -31,8 +31,8 @@ function getNetworkIps() {
 }
 
 // Serve static files from repository root and public folder
-app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Health check endpoint
 app.get('/health', (req, res) => {

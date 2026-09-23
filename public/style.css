@@ -299,6 +299,11 @@ body.theme-light .app-header {
   padding: 36px 20px 48px;
 }
 
+/* Utilities & Visibility */
+.hidden {
+  display: none !important;
+}
+
 .view {
   display: flex;
   flex-direction: column;
@@ -755,6 +760,16 @@ body.theme-light .tab-btn.active {
   margin-bottom: 16px;
 }
 
+/* Tab Panel */
+.tab-panel {
+  display: block;
+  animation: fadeIn 0.2s ease;
+}
+
+.tab-panel.hidden {
+  display: none !important;
+}
+
 /* Segmented Control */
 .segmented-control {
   display: flex;
@@ -831,6 +846,17 @@ body.theme-light .segmented-control {
 .room-pill:hover {
   background: rgba(99, 102, 241, 0.2);
   transform: translateY(-1px);
+}
+
+.copy-icon {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  transition: transform 0.15s ease;
+}
+
+.room-pill:hover .copy-icon {
+  transform: scale(1.15);
+  opacity: 1;
 }
 
 /* Waiting Lobby */
@@ -977,7 +1003,8 @@ body.theme-light .segmented-control {
   color: var(--text-primary);
 }
 
-.score-ties {
+.score-ties,
+.score-territory-info {
   text-align: center;
   padding: 14px 16px;
   flex-direction: column;
@@ -985,7 +1012,8 @@ body.theme-light .segmented-control {
   gap: 2px;
 }
 
-.score-ties .player-name {
+.score-ties .player-name,
+.score-territory-info .player-name {
   font-size: 0.7rem;
   letter-spacing: 0.08em;
   color: var(--text-muted);
@@ -1174,16 +1202,23 @@ body.theme-light .board-cell.cell-win {
   z-index: 10;
 }
 
+#ttt-strike-line,
 #strike-line {
   display: none;
-  stroke-width: 6;
+  stroke-width: 6.5;
   stroke-linecap: round;
   stroke-dasharray: 400;
   stroke-dashoffset: 400;
+  transition: opacity 0.2s ease;
+}
+
+#ttt-strike-line.animate-strike,
+#strike-line.animate-strike {
   animation: drawStrike 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes drawStrike {
+  from { stroke-dashoffset: 400; }
   to { stroke-dashoffset: 0; }
 }
 
@@ -1197,6 +1232,37 @@ body.theme-light .board-cell.cell-win {
   justify-content: center;
   gap: 12px;
   margin-bottom: 24px;
+}
+
+/* Rematch Pulse Highlight Animation */
+.pulse-highlight {
+  animation: pulseRematch 1.2s infinite ease-in-out !important;
+}
+
+@keyframes pulseRematch {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 18px 4px rgba(99, 102, 241, 0.75);
+  }
+}
+
+.btn-dots-theme.pulse-highlight {
+  animation: pulseRematchDots 1.2s infinite ease-in-out !important;
+}
+
+@keyframes pulseRematchDots {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(0, 229, 255, 0.7);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 18px 4px rgba(0, 229, 255, 0.75);
+  }
 }
 
 /* Reactions Bar */
@@ -1623,6 +1689,8 @@ body.theme-light .game-tag-pill {
 }
 
 .dots-board {
+  --dot-size: 14px;
+  --line-size: 6px;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -1653,9 +1721,90 @@ body.theme-light .game-tag-pill {
   height: 58px;
 }
 
+.dots-board[style*="--dots-rows: 5"] {
+  --dot-size: 11px;
+}
+
+.dots-board[style*="--dots-rows: 5"] .box-strip {
+  height: 46px;
+}
+
+.dots-board[style*="--dots-rows: 5"] .dot-node {
+  width: 11px;
+  height: 11px;
+}
+
+.dots-board[style*="--dots-rows: 5"] .box-badge {
+  font-size: 0.76rem;
+}
+
+/* Quick Grid Selector Bar */
+.dots-grid-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 4px 0 16px;
+}
+
+.dots-grid-bar.hidden {
+  display: none !important;
+}
+
+.grid-bar-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.grid-chips {
+  display: inline-flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  gap: 3px;
+}
+
+.grid-chip {
+  background: transparent;
+  border: 1px solid transparent;
+  outline: none;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.grid-chip:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+body.theme-light .grid-chip:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.grid-chip.active {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(236, 72, 153, 0.25));
+  border-color: var(--cyan-color);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.4);
+}
+
+body.theme-light .grid-chip.active {
+  color: #0f172a;
+}
+
 .dot-node {
-  width: 14px;
-  height: 14px;
+  width: var(--dot-size, 14px);
+  height: var(--dot-size, 14px);
   border-radius: 50%;
   background: #f8fafc;
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.7), 0 0 2px #fff;
@@ -1686,7 +1835,7 @@ body.theme-light .dot-line {
 }
 
 .line-horizontal {
-  height: 6px;
+  height: var(--line-size, 6px);
   flex: 1;
 }
 
@@ -1701,9 +1850,10 @@ body.theme-light .dot-line {
 }
 
 .line-vertical {
-  width: 6px;
+  width: var(--line-size, 6px);
   height: 100%;
   flex-shrink: 0;
+  margin: 0 calc((var(--dot-size, 14px) - var(--line-size, 6px)) / 2);
 }
 
 .line-vertical::before {
@@ -1826,6 +1976,10 @@ body.theme-light .dot-line:hover:not(.drawn):not(:disabled) {
 }
 
 @media (max-width: 480px) {
+  .dots-board {
+    --dot-size: 12px;
+    --line-size: 5px;
+  }
   .dots-board-frame {
     padding: 14px;
   }
@@ -1838,17 +1992,24 @@ body.theme-light .dot-line:hover:not(.drawn):not(:disabled) {
   .dots-board[style*="--dots-rows: 4"] .box-strip {
     height: 48px;
   }
-  .dot-node {
-    width: 12px;
-    height: 12px;
+  .dots-board[style*="--dots-rows: 5"] {
+    --dot-size: 9px;
   }
-  .line-horizontal {
-    height: 5px;
+  .dots-board[style*="--dots-rows: 5"] .box-strip {
+    height: 38px;
   }
-  .line-vertical {
-    width: 5px;
+  .dots-board[style*="--dots-rows: 5"] .box-badge {
+    font-size: 0.65rem;
   }
   .box-badge {
     font-size: 0.8rem;
+  }
+  .dots-grid-bar {
+    gap: 6px;
+    margin: 2px 0 12px;
+  }
+  .grid-chip {
+    padding: 3px 8px;
+    font-size: 0.72rem;
   }
 }

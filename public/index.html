@@ -135,7 +135,7 @@
             <div class="game-tags-list">
               <span class="game-tag-pill">🌐 Cross-Device Live</span>
               <span class="game-tag-pill">🎁 Bonus Turns</span>
-              <span class="game-tag-pill">📐 2x2, 3x3, 4x4</span>
+              <span class="game-tag-pill">📐 2x2, 3x3, 4x4, 5x5</span>
             </div>
             <button class="btn btn-primary full-width game-launch-btn btn-dots-theme">
               <span>Play Dots & Boxes</span>
@@ -536,6 +536,17 @@
           <span id="dots-status-text">Player 1's Turn</span>
         </div>
 
+        <!-- In-game quick grid selector for local & AI -->
+        <div class="dots-grid-bar hidden" id="dots-quick-grid-bar">
+          <span class="grid-bar-label">Boxes:</span>
+          <div class="grid-chips" id="dots-quick-grid-chips">
+            <button class="grid-chip" data-size="2" title="2x2 Boxes (4)">2x2 (4)</button>
+            <button class="grid-chip active" data-size="3" title="3x3 Boxes (9)">3x3 (9)</button>
+            <button class="grid-chip" data-size="4" title="4x4 Boxes (16)">4x4 (16)</button>
+            <button class="grid-chip" data-size="5" title="5x5 Boxes (25)">5x5 (25)</button>
+          </div>
+        </div>
+
         <!-- Dynamic Dots & Boxes Grid Container -->
         <div class="dots-board-wrapper">
           <div class="dots-board-frame" id="dots-board-container">
@@ -583,9 +594,10 @@
             <div class="form-group">
               <label for="dots-create-grid-size">Grid Size</label>
               <select id="dots-create-grid-size" class="form-select">
-                <option value="2">2x2 Boxes (Quick Blitz)</option>
+                <option value="2">2x2 Boxes (Quick Blitz - 4 Boxes)</option>
                 <option value="3" selected>3x3 Boxes (Classic - 9 Boxes)</option>
                 <option value="4">4x4 Boxes (Pro Strategic - 16 Boxes)</option>
+                <option value="5">5x5 Boxes (Master Grid - 25 Boxes)</option>
               </select>
             </div>
             <p class="tab-hint">Create a private lobby and invite a friend on another device.</p>
@@ -613,6 +625,7 @@
               <button class="segment-btn" data-size="2">2x2</button>
               <button class="segment-btn active" data-size="3">3x3</button>
               <button class="segment-btn" data-size="4">4x4</button>
+              <button class="segment-btn" data-size="5">5x5</button>
             </div>
           </div>
 
@@ -636,6 +649,34 @@
           <button id="dots-btn-start-ai-game" class="btn btn-primary full-width btn-dots-theme">Start Challenge</button>
         </div>
       </div>
+
+      <!-- Pass & Play Config Modal -->
+      <div id="modal-dots-local" class="modal-overlay hidden">
+        <div class="modal-card">
+          <button class="modal-close" data-close="modal-dots-local" aria-label="Close modal">&times;</button>
+          <h3 class="modal-title">⚔️ Pass & Play (Local 2P)</h3>
+
+          <div class="form-group">
+            <label>Grid Size (Boxes)</label>
+            <div class="segmented-control" id="dots-local-grid-control">
+              <button class="segment-btn" data-size="2">2x2 (4)</button>
+              <button class="segment-btn active" data-size="3">3x3 (9)</button>
+              <button class="segment-btn" data-size="4">4x4 (16)</button>
+              <button class="segment-btn" data-size="5">5x5 (25)</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Starting Player</label>
+            <div class="segmented-control" id="dots-local-turn-control">
+              <button class="segment-btn active" data-turn="P1">Player 1 (Cyan)</button>
+              <button class="segment-btn" data-turn="P2">Player 2 (Pink)</button>
+            </div>
+          </div>
+
+          <button id="dots-btn-start-local-game" class="btn btn-primary full-width btn-dots-theme">Start Match</button>
+        </div>
+      </div>
     </div>
 
   </main>
@@ -648,7 +689,8 @@
   <!-- PeerJS (WebRTC P2P fallback) & Socket.IO (primary server connection) -->
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script>window.Peer || document.write('<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"><\/script>')</script>
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>window.io || document.write('<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"><\/script>')</script>
   
   <!-- Audio & Visuals -->
   <script src="js/sound.js"></script>

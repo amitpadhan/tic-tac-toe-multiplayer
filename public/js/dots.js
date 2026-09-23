@@ -39,6 +39,11 @@
         opponentWantsRematch: false
       };
 
+      this.localConfig = {
+        gridSize: 3,
+        startingTurn: 'P1'
+      };
+
       this.dom = {};
     }
 
@@ -53,6 +58,9 @@
       this.dom.viewGame = document.getElementById('view-dots-game');
       this.dom.modalOnline = document.getElementById('modal-dots-online');
       this.dom.modalAi = document.getElementById('modal-dots-ai');
+      this.dom.modalLocal = document.getElementById('modal-dots-local');
+      this.dom.quickGridBar = document.getElementById('dots-quick-grid-bar');
+      this.dom.quickGridChips = document.querySelectorAll('#dots-quick-grid-chips .grid-chip');
 
       this.dom.boardContainer = document.getElementById('dots-board-container');
       this.dom.statusBanner = document.getElementById('dots-status-banner');
@@ -113,7 +121,7 @@
       if (btnStartLocal) {
         btnStartLocal.addEventListener('click', () => {
           window.soundFX.playClick();
-          this.startLocalGame();
+          this.openModal('local');
         });
       }
 
@@ -134,10 +142,17 @@
         });
       }
 
+      // Load saved name
+      const savedName = localStorage.getItem('arcade_player_name');
+      if (savedName && this.dom.inputPlayerName) {
+        this.dom.inputPlayerName.value = savedName;
+      }
+
       // Create / Join Room Submits
       if (this.dom.btnCreateSubmit) {
         this.dom.btnCreateSubmit.addEventListener('click', () => {
           const name = this.dom.inputPlayerName.value.trim() || 'Player 1';
+          localStorage.setItem('arcade_player_name', name);
           const sizeVal = this.dom.selectGridSize ? parseInt(this.dom.selectGridSize.value, 10) : 3;
           this.rows = sizeVal;
           this.cols = sizeVal;
@@ -148,12 +163,36 @@
       if (this.dom.btnJoinSubmit) {
         this.dom.btnJoinSubmit.addEventListener('click', () => {
           const name = this.dom.inputPlayerName.value.trim() || 'Player 2';
+          localStorage.setItem('arcade_player_name', name);
           const code = this.dom.inputJoinCode.value.trim().toUpperCase();
           if (!code || code.length < 4) {
             window.showAppToast('Please enter a valid room code (4-6 chars).');
             return;
           }
           this.joinOnlineRoom(code, name);
+        });
+      }
+
+      // Keyboard Accessibility
+      if (this.dom.inputJoinCode) {
+        this.dom.inputJoinCode.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            if (this.dom.btnJoinSubmit) this.dom.btnJoinSubmit.click();
+          }
+        });
+      }
+
+      if (this.dom.inputPlayerName) {
+        this.dom.inputPlayerName.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            if (this.dom.tabCreate && this.dom.tabCreate.classList.contains('active')) {
+              if (this.dom.btnCreateSubmit) this.dom.btnCreateSubmit.click();
+            } else if (this.dom.inputJoinCode) {
+              this.dom.inputJoinCode.focus();
+            }
+          }
         });
       }
 
@@ -190,6 +229,42 @@
         btnStartAi.addEventListener('click', () => {
           this.closeModal('ai');
           this.startAIGame();
+        });
+      }
+
+      // Local Pass & Play Controls
+      document.querySelectorAll('#dots-local-grid-control .segment-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('#dots-local-grid-control .segment-btn').forEach(b => b.classList.remove('active'));
+          e.currentTarget.classList.add('active');
+          this.localConfig.gridSize = parseInt(e.currentTarget.dataset.size, 10) || 3;
+        });
+      });
+
+      document.querySelectorAll('#dots-local-turn-control .segment-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('#dots-local-turn-control .segment-btn').forEach(b => b.classList.remove('active'));
+          e.currentTarget.classList.add('active');
+          this.localConfig.startingTurn = e.currentTarget.dataset.turn || 'P1';
+        });
+      });
+
+      const btnStartLocalGame = document.getElementById('dots-btn-start-local-game');
+      if (btnStartLocalGame) {
+        btnStartLocalGame.addEventListener('click', () => {
+          this.closeModal('local');
+          this.startLocalGame(this.localConfig.gridSize, this.localConfig.startingTurn);
+        });
+      }
+
+      // In-Game Quick Grid Selector Chips (Local & AI)
+      if (this.dom.quickGridChips) {
+        this.dom.quickGridChips.forEach(chip => {
+          chip.addEventListener('click', (e) => {
+            const size = parseInt(e.currentTarget.dataset.size, 10) || 3;
+            if (this.rows === size && this.cols === size) return;
+            this.changeGridSize(size);
+          });
         });
       }
 
@@ -244,6 +319,10 @@
       const net = window.networkManager;
       if (!net) return;
 
+      net.on('error-message', (data) => {
+        window.showAppToast(data.message || 'An error occurred.');
+      });
+
       net.on('room-created', (data) => {
         if (data.gameType !== 'dots') return;
         this.closeModal('online');
@@ -251,13 +330,16 @@
         this.onlineState.mySymbol = data.playerSymbol;
         this.onlineState.myName = data.playerName;
         this.onlineState.isHost = true;
+        this.onlineState.isSpectator = false;
         this.onlineState.connected = false;
 
-        if (data.roomState && data.roomState.config && data.roomState.config.rows) {
-          this.rows = data.roomState.config.rows;
-          this.cols = data.roomState.config.cols;
+        const r = (data.roomState && data.roomState.rows) || (data.roomState && data.roomState.config && data.roomState.config.rows);
+        if (r) {
+          this.rows = r;
+          this.cols = r;
         }
 
+        this.dom.btnRematch.style.display = '';
         this.showWaitingLobby(data.roomCode);
         this.dom.nameP1.textContent = `${data.playerName} (You)`;
         this.dom.nameP2.textContent = 'Waiting for opponent...';
@@ -272,33 +354,100 @@
         this.onlineState.mySymbol = data.playerSymbol;
         this.onlineState.myName = data.playerName;
         this.onlineState.isHost = false;
+        this.onlineState.isSpectator = !!data.isSpectator;
 
-        if (data.roomState && data.roomState.rows) {
-          this.rows = data.roomState.rows;
-          this.cols = data.roomState.cols;
+        const r = (data.roomState && data.roomState.rows) || (data.roomState && data.roomState.config && data.roomState.config.rows);
+        if (r) {
+          this.rows = r;
+          this.cols = r;
         }
 
         this.gameMode = 'online';
-        this.dom.gameModeTag.textContent = 'Online Match';
         this.dom.roomCodeBadge.classList.remove('hidden');
         this.dom.displayRoomCode.textContent = data.roomCode;
         this.dom.waitingLobby.classList.add('hidden');
         this.dom.reactionsBar.classList.remove('hidden');
 
+        if (data.isSpectator) {
+          this.dom.gameModeTag.textContent = 'Spectating';
+          this.dom.btnRematch.style.display = 'none';
+          this.onlineState.connected = true;
+
+          if (data.roomState && data.roomState.players) {
+            const p1 = data.roomState.players[0];
+            const p2 = data.roomState.players[1];
+            this.dom.nameP1.textContent = p1 ? p1.name : 'Player 1';
+            this.dom.nameP2.textContent = p2 ? p2.name : 'Player 2';
+            this.dom.roleP1.textContent = 'Player (P1)';
+            this.dom.roleP2.textContent = 'Player (P2)';
+          }
+
+          this.switchView('game');
+          this.buildBoardGrid();
+
+          if (data.roomState) {
+            if (data.roomState.lines) {
+              this.lines = { ...data.roomState.lines };
+              Object.entries(this.lines).forEach(([lId, sym]) => {
+                const lineEl = document.getElementById(`line-${lId}`);
+                if (lineEl) {
+                  lineEl.classList.add('drawn', sym === 'P1' ? 'line-p1' : 'line-p2');
+                  lineEl.disabled = true;
+                }
+              });
+            }
+            if (data.roomState.boxes) {
+              this.boxes = { ...data.roomState.boxes };
+              Object.entries(this.boxes).forEach(([bId, sym]) => {
+                const boxEl = document.getElementById(`box-${bId}`);
+                if (boxEl) {
+                  boxEl.classList.add('claimed', sym === 'P1' ? 'box-p1' : 'box-p2');
+                  boxEl.innerHTML = `<span class="box-badge">${sym === 'P1' ? 'P1' : 'P2'}</span>`;
+                }
+              });
+            }
+            if (data.roomState.scores) {
+              this.scores = { ...data.roomState.scores };
+              this.updateScoreboardUI();
+            }
+            if (data.roomState.currentTurn) {
+              this.currentTurn = data.roomState.currentTurn;
+              this.updateTurnUI();
+            }
+            this.gameActive = data.roomState.status === 'playing';
+          }
+          return;
+        }
+
+        this.dom.gameModeTag.textContent = 'Online Match';
+        this.dom.btnRematch.style.display = '';
+
         if (data.roomState && data.roomState.players && data.roomState.players[0]) {
           this.onlineState.opponentName = data.roomState.players[0].name;
           this.dom.nameP1.textContent = data.roomState.players[0].name;
           this.dom.nameP2.textContent = `${data.playerName} (You)`;
+          this.dom.roleP1.textContent = 'Host (P1)';
+          this.dom.roleP2.textContent = 'Guest (P2)';
         }
 
         this.switchView('game');
-        this.buildBoardGrid();
+        this.resetBoardState();
       });
 
-      net.on('game-started', (data) => {
-        if (data.gameType && data.gameType !== 'dots') return;
-        this.dom.waitingLobby.classList.add('hidden');
+      net.on('player-promoted', (data) => {
+        if (this.gameMode !== 'online') return;
+        if (data.promotedPlayerName === this.onlineState.myName) {
+          this.onlineState.isSpectator = false;
+          this.onlineState.mySymbol = data.symbol;
+          this.dom.gameModeTag.textContent = 'Online Match';
+          this.dom.btnRematch.style.display = '';
+          window.showAppToast("You have been promoted to Player! Match starting...");
+        } else {
+          window.showAppToast(`${data.promotedPlayerName} joined as your new opponent!`);
+        }
+
         this.onlineState.connected = true;
+        this.dom.waitingLobby.classList.add('hidden');
 
         if (data.roomState && data.roomState.players) {
           const p1 = data.roomState.players.find(p => p.symbol === 'P1');
@@ -309,6 +458,32 @@
             this.onlineState.opponentName = this.onlineState.mySymbol === 'P1' ? p2.name : p1.name;
           }
         }
+        this.resetBoardState();
+      });
+
+      net.on('game-started', (data) => {
+        if (data.gameType && data.gameType !== 'dots') return;
+        this.dom.waitingLobby.classList.add('hidden');
+        this.onlineState.connected = true;
+        if (this.dom.quickGridBar) this.dom.quickGridBar.classList.add('hidden');
+
+        if (data.roomState) {
+          if (data.roomState.rows) {
+            this.rows = data.roomState.rows;
+            this.cols = data.roomState.cols || data.roomState.rows;
+          }
+          if (data.roomState.players) {
+            const p1 = data.roomState.players.find(p => p.symbol === 'P1');
+            const p2 = data.roomState.players.find(p => p.symbol === 'P2');
+            if (p1 && p2) {
+              this.dom.nameP1.textContent = p1.name + (this.onlineState.mySymbol === 'P1' ? ' (You)' : '');
+              this.dom.nameP2.textContent = p2.name + (this.onlineState.mySymbol === 'P2' ? ' (You)' : '');
+              this.onlineState.opponentName = this.onlineState.mySymbol === 'P1' ? p2.name : p1.name;
+              this.dom.roleP1.textContent = 'Host (P1)';
+              this.dom.roleP2.textContent = 'Guest (P2)';
+            }
+          }
+        }
 
         window.showAppToast(data.message || 'Opponent joined! Game started!');
         window.soundFX.playWin();
@@ -317,6 +492,15 @@
 
       net.on('dots-move-made', (data) => {
         if (this.gameMode !== 'online') return;
+
+        // In PeerJS P2P mode, execute the move received from opponent
+        if (window.networkManager && window.networkManager.mode === 'peerjs') {
+          if (data.symbol && data.symbol !== this.onlineState.mySymbol && data.lineId) {
+            this.executeMove(data.lineId, data.symbol);
+            return;
+          }
+        }
+
         this.applyMove(data.lineId, data.symbol, data.newBoxes, data.nextTurn, data.gotExtraTurn);
       });
 
@@ -327,7 +511,7 @@
       });
 
       net.on('rematch-requested', (data) => {
-        if (this.gameMode !== 'online') return;
+        if (this.gameMode !== 'online' || this.onlineState.isSpectator) return;
         this.onlineState.opponentWantsRematch = true;
         if (this.onlineState.rematchRequested) {
           window.networkManager.sendRematchStart();
@@ -344,6 +528,9 @@
 
       net.on('rematch-start', (data) => {
         if (this.gameMode !== 'online') return;
+        if (data && data.roomState && data.roomState.currentTurn) {
+          this.startingTurn = data.roomState.currentTurn;
+        }
         this.startRematchRound();
       });
 
@@ -360,11 +547,13 @@
     openModal(id) {
       if (id === 'online' && this.dom.modalOnline) this.dom.modalOnline.classList.remove('hidden');
       if (id === 'ai' && this.dom.modalAi) this.dom.modalAi.classList.remove('hidden');
+      if (id === 'local' && this.dom.modalLocal) this.dom.modalLocal.classList.remove('hidden');
     }
 
     closeModal(id) {
       if (id === 'online' && this.dom.modalOnline) this.dom.modalOnline.classList.add('hidden');
       if (id === 'ai' && this.dom.modalAi) this.dom.modalAi.classList.add('hidden');
+      if (id === 'local' && this.dom.modalLocal) this.dom.modalLocal.classList.add('hidden');
     }
 
     switchView(viewName) {
@@ -382,15 +571,23 @@
     }
 
     /* ---------------- Mode 1: Local Pass & Play ---------------- */
-    startLocalGame(gridSize = 3) {
+    startLocalGame(gridSize = 3, startingTurn = 'P1') {
       this.gameMode = 'local';
       this.rows = gridSize;
       this.cols = gridSize;
+      this.startingTurn = startingTurn;
+      this.currentTurn = startingTurn;
+      this.scores = { P1: 0, P2: 0 };
 
       this.dom.gameModeTag.textContent = `Pass & Play (${gridSize}x${gridSize})`;
       this.dom.roomCodeBadge.classList.add('hidden');
       this.dom.waitingLobby.classList.add('hidden');
       this.dom.reactionsBar.classList.add('hidden');
+      if (this.dom.quickGridBar) this.dom.quickGridBar.classList.remove('hidden');
+      this.updateQuickGridChips(gridSize);
+
+      if (this.dom.btnRematch) this.dom.btnRematch.style.display = '';
+      if (this.dom.boardContainer) this.dom.boardContainer.style.pointerEvents = 'auto';
 
       this.dom.nameP1.textContent = 'Player 1 (Cyan)';
       this.dom.nameP2.textContent = 'Player 2 (Pink)';
@@ -404,11 +601,20 @@
     /* ---------------- Mode 2: Play vs AI ---------------- */
     startAIGame() {
       this.gameMode = 'ai';
+      this.scores = { P1: 0, P2: 0 };
+      this.startingTurn = 'P1';
+      this.currentTurn = 'P1';
+
       const diffLabel = this.aiConfig.difficulty.charAt(0).toUpperCase() + this.aiConfig.difficulty.slice(1);
       this.dom.gameModeTag.textContent = `VS AI (${diffLabel} - ${this.rows}x${this.cols})`;
       this.dom.roomCodeBadge.classList.add('hidden');
       this.dom.waitingLobby.classList.add('hidden');
       this.dom.reactionsBar.classList.add('hidden');
+      if (this.dom.quickGridBar) this.dom.quickGridBar.classList.remove('hidden');
+      this.updateQuickGridChips(this.rows);
+
+      if (this.dom.btnRematch) this.dom.btnRematch.style.display = '';
+      if (this.dom.boardContainer) this.dom.boardContainer.style.pointerEvents = 'auto';
 
       if (this.aiConfig.playerSymbol === 'P1') {
         this.dom.nameP1.textContent = 'You (Cyan)';
@@ -428,6 +634,54 @@
       if (this.aiConfig.aiSymbol === 'P1') {
         this.triggerAIMove();
       }
+    }
+
+    changeGridSize(newSize) {
+      this.rows = newSize;
+      this.cols = newSize;
+      this.scores = { P1: 0, P2: 0 };
+      this.updateQuickGridChips(newSize);
+
+      if (this.gameMode === 'local') {
+        this.localConfig.gridSize = newSize;
+        this.dom.gameModeTag.textContent = `Pass & Play (${newSize}x${newSize})`;
+        this.resetBoardState();
+        window.showAppToast(`Grid changed to ${newSize}x${newSize} (${newSize * newSize} Boxes)!`);
+      } else if (this.gameMode === 'ai') {
+        const diffLabel = this.aiConfig.difficulty.charAt(0).toUpperCase() + this.aiConfig.difficulty.slice(1);
+        this.dom.gameModeTag.textContent = `VS AI (${diffLabel} - ${newSize}x${newSize})`;
+        this.resetBoardState();
+        window.showAppToast(`Grid changed to ${newSize}x${newSize} (${newSize * newSize} Boxes)!`);
+        if (this.aiConfig.aiSymbol === this.startingTurn) {
+          this.triggerAIMove();
+        }
+      }
+    }
+
+    updateQuickGridChips(size) {
+      if (this.dom.quickGridChips) {
+        this.dom.quickGridChips.forEach(chip => {
+          if (parseInt(chip.dataset.size, 10) === size) {
+            chip.classList.add('active');
+          } else {
+            chip.classList.remove('active');
+          }
+        });
+      }
+      document.querySelectorAll('#dots-local-grid-control .segment-btn').forEach(btn => {
+        if (parseInt(btn.dataset.size, 10) === size) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+      document.querySelectorAll('#dots-ai-grid-control .segment-btn').forEach(btn => {
+        if (parseInt(btn.dataset.size, 10) === size) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
     }
 
     /* ---------------- Mode 3: Online Multiplayer ---------------- */
@@ -456,6 +710,7 @@
       this.dom.lobbyCodeDisplay.textContent = code;
       this.dom.waitingLobby.classList.remove('hidden');
       this.dom.reactionsBar.classList.remove('hidden');
+      if (this.dom.quickGridBar) this.dom.quickGridBar.classList.add('hidden');
 
       this.resetBoardState();
       this.gameActive = false;
@@ -542,13 +797,21 @@
       if (!this.gameActive || this.lines[lineId]) return;
 
       if (this.gameMode === 'online') {
+        if (this.onlineState.isSpectator) {
+          window.showAppToast("Spectators cannot draw lines.");
+          return;
+        }
         if (!this.onlineState.connected || this.currentTurn !== this.onlineState.mySymbol) {
           window.showAppToast("Wait for your turn!");
           return;
         }
 
-        // Send to server/peer
-        window.networkManager.sendMove({ lineId, symbol: this.onlineState.mySymbol });
+        if (window.networkManager && window.networkManager.mode === 'peerjs') {
+          this.executeMove(lineId, this.onlineState.mySymbol);
+          window.networkManager.sendMove({ lineId, symbol: this.onlineState.mySymbol });
+        } else {
+          window.networkManager.sendMove({ lineId, symbol: this.onlineState.mySymbol });
+        }
         return;
       }
 
@@ -883,8 +1146,10 @@
 
     startRematchRound() {
       this.dom.btnRematch.classList.remove('pulse-highlight');
+      if (this.dom.boardContainer) this.dom.boardContainer.style.pointerEvents = 'auto';
       this.onlineState.rematchRequested = false;
       this.onlineState.opponentWantsRematch = false;
+      this.scores = { P1: 0, P2: 0 };
 
       // Swap starting turn
       this.startingTurn = this.startingTurn === 'P1' ? 'P2' : 'P1';
@@ -904,9 +1169,13 @@
       this.gameActive = false;
       this.onlineState.connected = false;
       this.onlineState.roomCode = null;
+      this.onlineState.isSpectator = false;
       this.onlineState.rematchRequested = false;
       this.onlineState.opponentWantsRematch = false;
       this.dom.btnRematch.classList.remove('pulse-highlight');
+      if (this.dom.btnRematch) this.dom.btnRematch.style.display = '';
+      if (this.dom.boardContainer) this.dom.boardContainer.style.pointerEvents = 'auto';
+      if (this.dom.quickGridBar) this.dom.quickGridBar.classList.add('hidden');
       this.switchView('menu');
     }
 

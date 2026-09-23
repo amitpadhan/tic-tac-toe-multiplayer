@@ -299,6 +299,11 @@ body.theme-light .app-header {
   padding: 36px 20px 48px;
 }
 
+/* Utilities & Visibility */
+.hidden {
+  display: none !important;
+}
+
 .view {
   display: flex;
   flex-direction: column;
@@ -755,6 +760,16 @@ body.theme-light .tab-btn.active {
   margin-bottom: 16px;
 }
 
+/* Tab Panel */
+.tab-panel {
+  display: block;
+  animation: fadeIn 0.2s ease;
+}
+
+.tab-panel.hidden {
+  display: none !important;
+}
+
 /* Segmented Control */
 .segmented-control {
   display: flex;
@@ -831,6 +846,17 @@ body.theme-light .segmented-control {
 .room-pill:hover {
   background: rgba(99, 102, 241, 0.2);
   transform: translateY(-1px);
+}
+
+.copy-icon {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  transition: transform 0.15s ease;
+}
+
+.room-pill:hover .copy-icon {
+  transform: scale(1.15);
+  opacity: 1;
 }
 
 /* Waiting Lobby */
@@ -977,7 +1003,8 @@ body.theme-light .segmented-control {
   color: var(--text-primary);
 }
 
-.score-ties {
+.score-ties,
+.score-territory-info {
   text-align: center;
   padding: 14px 16px;
   flex-direction: column;
@@ -985,7 +1012,8 @@ body.theme-light .segmented-control {
   gap: 2px;
 }
 
-.score-ties .player-name {
+.score-ties .player-name,
+.score-territory-info .player-name {
   font-size: 0.7rem;
   letter-spacing: 0.08em;
   color: var(--text-muted);
@@ -1204,6 +1232,37 @@ body.theme-light .board-cell.cell-win {
   justify-content: center;
   gap: 12px;
   margin-bottom: 24px;
+}
+
+/* Rematch Pulse Highlight Animation */
+.pulse-highlight {
+  animation: pulseRematch 1.2s infinite ease-in-out !important;
+}
+
+@keyframes pulseRematch {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 18px 4px rgba(99, 102, 241, 0.75);
+  }
+}
+
+.btn-dots-theme.pulse-highlight {
+  animation: pulseRematchDots 1.2s infinite ease-in-out !important;
+}
+
+@keyframes pulseRematchDots {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(0, 229, 255, 0.7);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 18px 4px rgba(0, 229, 255, 0.75);
+  }
 }
 
 /* Reactions Bar */
@@ -1630,6 +1689,8 @@ body.theme-light .game-tag-pill {
 }
 
 .dots-board {
+  --dot-size: 14px;
+  --line-size: 6px;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -1658,6 +1719,10 @@ body.theme-light .game-tag-pill {
 
 .dots-board[style*="--dots-rows: 4"] .box-strip {
   height: 58px;
+}
+
+.dots-board[style*="--dots-rows: 5"] {
+  --dot-size: 11px;
 }
 
 .dots-board[style*="--dots-rows: 5"] .box-strip {
@@ -1738,8 +1803,8 @@ body.theme-light .grid-chip.active {
 }
 
 .dot-node {
-  width: 14px;
-  height: 14px;
+  width: var(--dot-size, 14px);
+  height: var(--dot-size, 14px);
   border-radius: 50%;
   background: #f8fafc;
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.7), 0 0 2px #fff;
@@ -1770,7 +1835,7 @@ body.theme-light .dot-line {
 }
 
 .line-horizontal {
-  height: 6px;
+  height: var(--line-size, 6px);
   flex: 1;
 }
 
@@ -1785,9 +1850,10 @@ body.theme-light .dot-line {
 }
 
 .line-vertical {
-  width: 6px;
+  width: var(--line-size, 6px);
   height: 100%;
   flex-shrink: 0;
+  margin: 0 calc((var(--dot-size, 14px) - var(--line-size, 6px)) / 2);
 }
 
 .line-vertical::before {
@@ -1910,6 +1976,10 @@ body.theme-light .dot-line:hover:not(.drawn):not(:disabled) {
 }
 
 @media (max-width: 480px) {
+  .dots-board {
+    --dot-size: 12px;
+    --line-size: 5px;
+  }
   .dots-board-frame {
     padding: 14px;
   }
@@ -1922,25 +1992,14 @@ body.theme-light .dot-line:hover:not(.drawn):not(:disabled) {
   .dots-board[style*="--dots-rows: 4"] .box-strip {
     height: 48px;
   }
+  .dots-board[style*="--dots-rows: 5"] {
+    --dot-size: 9px;
+  }
   .dots-board[style*="--dots-rows: 5"] .box-strip {
     height: 38px;
   }
-  .dots-board[style*="--dots-rows: 5"] .dot-node {
-    width: 9px;
-    height: 9px;
-  }
   .dots-board[style*="--dots-rows: 5"] .box-badge {
     font-size: 0.65rem;
-  }
-  .dot-node {
-    width: 12px;
-    height: 12px;
-  }
-  .line-horizontal {
-    height: 5px;
-  }
-  .line-vertical {
-    width: 5px;
   }
   .box-badge {
     font-size: 0.8rem;

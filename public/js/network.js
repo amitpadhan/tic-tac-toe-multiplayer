@@ -234,20 +234,24 @@
       const peerId = `dual-arcade-${gameType}-${code.toLowerCase()}`;
       this.peer = new Peer(peerId, PEER_CONFIG);
 
-      this.emitEvent('room-created', {
-        roomCode: code,
-        gameType,
-        playerSymbol: defaultSymbol,
-        playerName,
-        roomState: {
-          code,
+      this.peer.on('open', () => {
+        this.emitEvent('room-created', {
+          roomCode: code,
           gameType,
-          players: [{ name: playerName, symbol: defaultSymbol, score: 0 }],
-          currentTurn: defaultSymbol,
-          status: 'waiting',
-          scores: gameType === 'dots' ? { P1: 0, P2: 0 } : { X: 0, O: 0, draws: 0 },
-          config
-        }
+          playerSymbol: defaultSymbol,
+          playerName,
+          roomState: {
+            code,
+            gameType,
+            players: [{ name: playerName, symbol: defaultSymbol, score: 0 }],
+            currentTurn: defaultSymbol,
+            status: 'waiting',
+            scores: gameType === 'dots' ? { P1: 0, P2: 0 } : { X: 0, O: 0, draws: 0 },
+            rows: (config && config.rows) || 3,
+            cols: (config && config.cols) || 3,
+            config
+          }
+        });
       });
 
       this.peer.on('connection', (conn) => {
@@ -373,7 +377,17 @@
               message: `${data.playerName} joined! Match started.`,
               gameType: this.gameType,
               opponentName: data.playerName,
-              opponentSymbol: oppSymbol
+              opponentSymbol: oppSymbol,
+              roomState: {
+                code: this.currentRoom,
+                gameType: this.gameType,
+                players: [
+                  { name: this.myName, symbol: this.mySymbol, score: 0 },
+                  { name: data.playerName, symbol: oppSymbol, score: 0 }
+                ],
+                currentTurn: this.gameType === 'dots' ? 'P1' : 'X',
+                status: 'playing'
+              }
             });
             break;
 
@@ -476,6 +490,10 @@
 
       let baseOrigin = window.location.origin;
 
+      if (!baseOrigin || baseOrigin === 'null' || window.location.protocol === 'file:') {
+        return `?game=${game}&room=${code}`;
+      }
+
       // If running on localhost and we know the host computer's local network IP, suggest it!
       if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && this.serverIps.length > 0) {
         baseOrigin = `http://${this.serverIps[0]}:${window.location.port || 3000}`;
@@ -485,12 +503,15 @@
     }
 
     disconnect() {
+      if (this.mode === 'socketio' && this.socket && this.socket.connected) {
+        this.socket.emit('leave-room');
+      }
       if (this.peerConn) {
-        this.peerConn.close();
+        try { this.peerConn.close(); } catch (_) {}
         this.peerConn = null;
       }
       if (this.peer) {
-        this.peer.destroy();
+        try { this.peer.destroy(); } catch (_) {}
         this.peer = null;
       }
       this.currentRoom = null;
