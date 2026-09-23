@@ -106,6 +106,12 @@
     if (window.networkManager) {
       window.networkManager.disconnect();
     }
+    if (window.tttController) {
+      window.tttController.returnToMenu();
+    }
+    if (window.dotsController) {
+      window.dotsController.returnToMenu();
+    }
 
     if (viewSelector) {
       viewSelector.classList.remove('hidden');

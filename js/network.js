@@ -216,7 +216,26 @@
       return code;
     }
 
-    createRoomPeerJS({ playerName, gameType, config }) {
+    async ensurePeerLoaded() {
+      if (typeof Peer !== 'undefined') return true;
+      return new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
+        s.async = true;
+        s.onload = () => resolve(typeof Peer !== 'undefined');
+        s.onerror = () => {
+          const s2 = document.createElement('script');
+          s2.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+          s2.async = true;
+          s2.onload = () => resolve(typeof Peer !== 'undefined');
+          s2.onerror = () => resolve(false);
+          document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+      });
+    }
+
+    async createRoomPeerJS({ playerName, gameType, config }) {
       this.mode = 'peerjs';
       this.isHost = true;
       const code = this.generateRandomCode();
@@ -225,8 +244,11 @@
       this.mySymbol = defaultSymbol;
 
       if (typeof Peer === 'undefined') {
-        this.emitEvent('error-message', { message: 'Multiplayer library loading... please check internet connection.' });
-        return;
+        const loaded = await this.ensurePeerLoaded();
+        if (!loaded) {
+          this.emitEvent('error-message', { message: 'Multiplayer library loading... please check internet connection.' });
+          return;
+        }
       }
 
       if (this.peer) this.peer.destroy();
@@ -290,14 +312,17 @@
       });
     }
 
-    joinRoomPeerJS({ roomCode, playerName }) {
+    async joinRoomPeerJS({ roomCode, playerName }) {
       this.mode = 'peerjs';
       this.isHost = false;
       this.currentRoom = roomCode;
 
       if (typeof Peer === 'undefined') {
-        this.emitEvent('error-message', { message: 'Multiplayer library loading... please wait.' });
-        return;
+        const loaded = await this.ensurePeerLoaded();
+        if (!loaded) {
+          this.emitEvent('error-message', { message: 'Multiplayer library loading... please wait.' });
+          return;
+        }
       }
 
       if (this.peer) this.peer.destroy();

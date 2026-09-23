@@ -8,7 +8,10 @@
   <meta name="description" content="Modern real-time multiplayer web games. Play Tic-Tac-Toe Pro and Dots and Boxes with friends across any device, challenge smart AI engines, or play locally.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  </noscript>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -686,16 +689,13 @@
   <!-- Floating Reaction Streams -->
   <div class="reaction-stream"></div>
 
-  <!-- PeerJS (WebRTC P2P fallback) & Socket.IO (primary server connection) -->
-  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script>window.Peer || document.write('<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"><\/script>')</script>
+  <!-- Socket.IO (primary server connection with zero external latency) -->
   <script src="/socket.io/socket.io.js"></script>
-  <script>window.io || document.write('<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"><\/script>')</script>
   
   <!-- Audio & Visuals -->
   <script src="js/sound.js"></script>
   <script src="js/confetti.js"></script>
-  <!-- Unified Networking -->
+  <!-- Unified Networking (Lazy-loads P2P only on demand) -->
   <script src="js/network.js"></script>
   <!-- Games Controllers -->
   <script src="js/tictactoe.js"></script>

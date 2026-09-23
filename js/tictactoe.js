@@ -37,6 +37,7 @@
       this.startingTurn = 'X';
       this.gameActive = false;
       this.scores = { X: 0, O: 0, draws: 0 };
+      this.aiTimer = null;
 
       this.aiConfig = {
         difficulty: 'unbeatable',
@@ -397,6 +398,9 @@
             this.onlineState.opponentName = this.onlineState.mySymbol === 'X' ? po.name : px.name;
           }
         }
+        if (data.roomState && data.roomState.currentTurn) {
+          this.startingTurn = data.roomState.currentTurn;
+        }
         this.resetBoardState();
       });
 
@@ -468,13 +472,15 @@
       net.on('rematch-requested', (data) => {
         if (this.gameMode !== 'online' || this.onlineState.isSpectator) return;
         this.onlineState.opponentWantsRematch = true;
-        if (this.onlineState.rematchRequested) {
-          window.networkManager.sendRematchStart();
-          this.startRematchRound();
-        } else {
-          window.showAppToast(`${data.playerName || 'Opponent'} requested a rematch!`);
-          this.dom.btnRematch.classList.add('pulse-highlight');
+        if (window.networkManager && window.networkManager.mode === 'peerjs') {
+          if (this.onlineState.rematchRequested) {
+            window.networkManager.sendRematchStart();
+            this.startRematchRound(false);
+            return;
+          }
         }
+        window.showAppToast(`${data.playerName || 'Opponent'} requested a rematch!`);
+        this.dom.btnRematch.classList.add('pulse-highlight');
       });
 
       net.on('rematch-pending', () => {
@@ -492,13 +498,15 @@
             this.startingTurn = data.roomState.currentTurn;
           }
         }
-        this.startRematchRound();
+        this.startRematchRound(false);
       });
 
       net.on('player-left', (data) => {
         if (this.gameMode !== 'online') return;
         this.gameActive = false;
         this.onlineState.connected = false;
+        this.resetBoardState();
+        this.gameActive = false;
         this.dom.waitingLobby.classList.remove('hidden');
         window.showAppToast(data.message || 'Opponent left the room.');
         this.setStatusMessage('Waiting for opponent...', 'X');
@@ -531,7 +539,15 @@
 
     /* ---------------- Mode 1: Local Pass & Play ---------------- */
     startLocalGame() {
+      if (this.aiTimer) {
+        clearTimeout(this.aiTimer);
+        this.aiTimer = null;
+      }
       this.gameMode = 'local';
+      this.startingTurn = 'X';
+      this.scores = { X: 0, O: 0, draws: 0 };
+      this.updateScoreboardUI();
+
       this.dom.gameModeTag.textContent = 'Pass & Play';
       this.dom.roomCodeBadge.classList.add('hidden');
       this.dom.waitingLobby.classList.add('hidden');
@@ -550,7 +566,15 @@
 
     /* ---------------- Mode 2: Play vs AI ---------------- */
     startAIGame() {
+      if (this.aiTimer) {
+        clearTimeout(this.aiTimer);
+        this.aiTimer = null;
+      }
       this.gameMode = 'ai';
+      this.startingTurn = 'X';
+      this.scores = { X: 0, O: 0, draws: 0 };
+      this.updateScoreboardUI();
+
       const diffLabel = this.aiConfig.difficulty.charAt(0).toUpperCase() + this.aiConfig.difficulty.slice(1);
       this.dom.gameModeTag.textContent = `VS AI (${diffLabel})`;
       this.dom.roomCodeBadge.classList.add('hidden');
@@ -581,17 +605,25 @@
 
     triggerAIMove() {
       if (!this.gameActive) return;
+      if (this.aiTimer) {
+        clearTimeout(this.aiTimer);
+        this.aiTimer = null;
+      }
       this.setStatusMessage('AI is thinking...', this.aiConfig.aiSymbol);
       this.dom.boardGrid.style.pointerEvents = 'none';
 
-      setTimeout(() => {
-        if (!this.gameActive) return;
+      this.aiTimer = setTimeout(() => {
+        this.aiTimer = null;
+        if (!this.gameActive || this.gameMode !== 'ai') {
+          if (this.dom.boardGrid) this.dom.boardGrid.style.pointerEvents = 'auto';
+          return;
+        }
         const moveIndex = this.getBestAIMove();
         this.dom.boardGrid.style.pointerEvents = 'auto';
         if (moveIndex !== null && moveIndex !== undefined) {
           this.executeMove(moveIndex, this.aiConfig.aiSymbol);
         }
-      }, 420);
+      }, 140);
     }
 
     getBestAIMove() {
@@ -888,24 +920,35 @@
     handleRematchClick() {
       if (this.gameMode === 'online') {
         this.onlineState.rematchRequested = true;
-        if (this.onlineState.opponentWantsRematch) {
-          window.networkManager.sendRematchStart();
-          this.startRematchRound();
+        if (window.networkManager && window.networkManager.mode === 'peerjs') {
+          if (this.onlineState.opponentWantsRematch) {
+            window.networkManager.sendRematchStart();
+            this.startRematchRound(false);
+          } else {
+            window.networkManager.sendRematch();
+          }
         } else {
+          // Socket.IO mode: always send rematch vote to server
           window.networkManager.sendRematch();
         }
         return;
       }
 
-      this.startRematchRound();
+      this.startRematchRound(true);
     }
 
-    startRematchRound() {
+    startRematchRound(toggleTurn = true) {
+      if (this.aiTimer) {
+        clearTimeout(this.aiTimer);
+        this.aiTimer = null;
+      }
       this.dom.btnRematch.classList.remove('pulse-highlight');
       if (this.dom.boardGrid) this.dom.boardGrid.style.pointerEvents = 'auto';
       this.onlineState.rematchRequested = false;
       this.onlineState.opponentWantsRematch = false;
-      this.startingTurn = this.startingTurn === 'X' ? 'O' : 'X';
+      if (toggleTurn) {
+        this.startingTurn = this.startingTurn === 'X' ? 'O' : 'X';
+      }
       this.resetBoardState();
       window.showAppToast('Rematch started! Good luck!');
       window.soundFX.playClick();
@@ -916,6 +959,10 @@
     }
 
     returnToMenu() {
+      if (this.aiTimer) {
+        clearTimeout(this.aiTimer);
+        this.aiTimer = null;
+      }
       if (this.gameMode === 'online') {
         window.networkManager.disconnect();
       }
@@ -928,6 +975,7 @@
       this.dom.btnRematch.classList.remove('pulse-highlight');
       if (this.dom.btnRematch) this.dom.btnRematch.style.display = '';
       if (this.dom.boardGrid) this.dom.boardGrid.style.pointerEvents = 'auto';
+      if (this.dom.waitingLobby) this.dom.waitingLobby.classList.add('hidden');
       this.hideWinningStrike();
       this.switchView('menu');
     }
@@ -967,19 +1015,32 @@
 
     copyRoomCode() {
       if (!this.onlineState.roomCode) return;
-      navigator.clipboard.writeText(this.onlineState.roomCode).then(() => {
-        window.showAppToast(`Room code copied: ${this.onlineState.roomCode}`);
-        window.soundFX.playClick();
-      });
+      const code = this.onlineState.roomCode;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(() => {
+          window.showAppToast(`Room code copied: ${code}`);
+          window.soundFX.playClick();
+        }).catch(() => {
+          window.showAppToast(`Room code: ${code}`);
+        });
+      } else {
+        window.showAppToast(`Room code: ${code}`);
+      }
     }
 
     copyRoomLink() {
       if (!this.onlineState.roomCode) return;
       const url = window.networkManager.getShareableLink(this.onlineState.roomCode, 'tictactoe');
-      navigator.clipboard.writeText(url).then(() => {
-        window.showAppToast('Invite link copied to clipboard!');
-        window.soundFX.playClick();
-      });
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+          window.showAppToast('Invite link copied to clipboard!');
+          window.soundFX.playClick();
+        }).catch(() => {
+          window.prompt('Copy room link:', url);
+        });
+      } else {
+        window.prompt('Copy room link:', url);
+      }
     }
 
     sendReaction(emoji) {

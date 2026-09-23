@@ -423,6 +423,65 @@ async function runTests() {
       setTimeout(() => reject(new Error('Test 8 timed out')), 6000);
     });
 
+    // ----------------------------------------------------
+    // TEST 9: Tic-Tac-Toe Rematch Turn Alternation & Round 2 Move Execution
+    // ----------------------------------------------------
+    console.log('--- TEST 9: Tic-Tac-Toe Rematch Turn Alternation & Round 2 ---');
+    await new Promise((resolve, reject) => {
+      const p1 = io(SERVER_URL);
+      const p2 = io(SERVER_URL);
+
+      p1.on('connect', () => {
+        p1.emit('create-room', { playerName: 'Alice_X', gameType: 'tictactoe' });
+      });
+
+      p1.on('room-created', ({ roomCode }) => {
+        p2.emit('join-room', { roomCode, playerName: 'Bob_O' });
+      });
+
+      p2.on('game-started', ({ roomState }) => {
+        assert.strictEqual(roomState.currentTurn, 'X');
+        // Round 1 over: both request rematch
+        p1.emit('request-rematch');
+        p2.emit('request-rematch');
+      });
+
+      let rematchCount = 0;
+      const onRematch = ({ roomState }) => {
+        rematchCount++;
+        if (rematchCount === 2) {
+          console.log(`✓ Rematch started! Starting turn switched to: ${roomState.currentTurn}`);
+          assert.strictEqual(roomState.currentTurn, 'O');
+          assert.strictEqual(roomState.startingTurn, 'O');
+          assert.deepStrictEqual(roomState.board, Array(9).fill(null));
+
+          // Bob_O starts round 2
+          p2.emit('make-move', { index: 0 });
+        }
+      };
+
+      p1.on('rematch-start', onRematch);
+      p2.on('rematch-start', onRematch);
+
+      p1.on('move-made', ({ index, symbol, nextTurn }) => {
+        if (index === 0 && symbol === 'O') {
+          console.log(`✓ Round 2 move 1 (Bob_O) accepted: index=${index}, nextTurn=${nextTurn}`);
+          assert.strictEqual(nextTurn, 'X');
+          // Alice_X takes next turn
+          p1.emit('make-move', { index: 4 });
+        } else if (index === 4 && symbol === 'X') {
+          console.log(`✓ Round 2 move 2 (Alice_X) accepted: index=${index}, nextTurn=${nextTurn}`);
+          assert.strictEqual(nextTurn, 'O');
+          p1.disconnect();
+          p2.disconnect();
+          console.log('✓ TEST 9 PASSED!\n');
+          resolve();
+        }
+      });
+
+      setTimeout(() => reject(new Error('Test 9 timed out')), 6000);
+    });
+
     console.log('🎉 ALL MULTIPLAYER & GAME INTEGRATION TESTS PASSED SUCCESSFULLY!');
   } finally {
     if (spawnedServer) {

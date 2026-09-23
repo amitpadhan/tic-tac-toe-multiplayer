@@ -172,9 +172,14 @@ io.on('connection', (socket) => {
           if (room.gameType === 'tictactoe') {
             room.board = Array(9).fill(null);
             room.winningLine = null;
+            room.startingTurn = 'X';
+            room.currentTurn = 'X';
+            room.scores = { X: 0, O: 0, draws: 0 };
           } else {
             room.lines = {};
             room.boxes = {};
+            room.startingTurn = 'P1';
+            room.currentTurn = 'P1';
             room.scores = { P1: 0, P2: 0 };
           }
           room.winner = null;
@@ -278,6 +283,10 @@ io.on('connection', (socket) => {
       const player2 = { id: socket.id, name: cleanName, symbol: symbol, score: 0 };
       room.players.push(player2);
       room.status = 'playing';
+      if (!room.startingTurn) {
+        room.startingTurn = room.gameType === 'dots' ? 'P1' : 'X';
+      }
+      room.currentTurn = room.startingTurn;
 
       socket.emit('room-joined', {
         roomCode: code,
@@ -549,6 +558,7 @@ function getPublicRoomState(room) {
     gameType: room.gameType,
     players: room.players.map(p => ({ id: p.id, name: p.name, symbol: p.symbol, score: p.score })),
     spectatorsCount: room.spectators.length,
+    startingTurn: room.startingTurn,
     currentTurn: room.currentTurn,
     status: room.status,
     winner: room.winner,
