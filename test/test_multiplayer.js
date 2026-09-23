@@ -220,6 +220,163 @@ async function runTests() {
       setTimeout(() => reject(new Error('Test 3 timed out')), 4000);
     });
 
+    // ----------------------------------------------------
+    // TEST 4: Explicit Leave-Room & Opponent Notification
+    // ----------------------------------------------------
+    console.log('--- TEST 4: Leave-Room Handling ---');
+    await new Promise((resolve, reject) => {
+      const host = io(SERVER_URL);
+      const guest = io(SERVER_URL);
+
+      host.on('connect', () => {
+        host.emit('create-room', { playerName: 'HostPlayer', gameType: 'tictactoe' });
+      });
+
+      host.on('room-created', ({ roomCode }) => {
+        guest.emit('join-room', { roomCode, playerName: 'GuestPlayer' });
+      });
+
+      guest.on('game-started', () => {
+        // Host leaves the room
+        console.log('Host emitting leave-room...');
+        host.emit('leave-room');
+      });
+
+      guest.on('player-left', ({ playerName, roomState }) => {
+        console.log(`✓ Guest received player-left for ${playerName}, room status: ${roomState.status}`);
+        assert.strictEqual(playerName, 'HostPlayer');
+        assert.strictEqual(roomState.status, 'waiting');
+        host.disconnect();
+        guest.disconnect();
+        console.log('✓ TEST 4 PASSED!\n');
+        resolve();
+      });
+
+      setTimeout(() => reject(new Error('Test 4 timed out')), 5000);
+    });
+
+    // ----------------------------------------------------
+    // TEST 5: Spectator Join & Spectator Promotion
+    // ----------------------------------------------------
+    console.log('--- TEST 5: Spectator Join & Promotion ---');
+    await new Promise((resolve, reject) => {
+      const p1 = io(SERVER_URL);
+      const p2 = io(SERVER_URL);
+      const spectator = io(SERVER_URL);
+
+      p1.on('connect', () => {
+        p1.emit('create-room', { playerName: 'PlayerOne', gameType: 'tictactoe' });
+      });
+
+      p1.on('room-created', ({ roomCode }) => {
+        p2.emit('join-room', { roomCode, playerName: 'PlayerTwo' });
+      });
+
+      p2.on('game-started', ({ roomState }) => {
+        spectator.emit('join-room', { roomCode: roomState.code, playerName: 'Watcher' });
+      });
+
+      spectator.on('room-joined', ({ isSpectator }) => {
+        console.log(`✓ Watcher joined as spectator: isSpectator=${isSpectator}`);
+        assert.strictEqual(isSpectator, true);
+
+        // Player 2 leaves the room -> Watcher should be promoted!
+        p2.emit('leave-room');
+      });
+
+      spectator.on('player-promoted', ({ promotedPlayerName, symbol, roomState }) => {
+        console.log(`✓ Watcher received player-promoted: name=${promotedPlayerName}, symbol=${symbol}`);
+        assert.strictEqual(promotedPlayerName, 'Watcher');
+        assert.strictEqual(symbol, 'O');
+        assert.strictEqual(roomState.status, 'playing');
+
+        p1.disconnect();
+        p2.disconnect();
+        spectator.disconnect();
+        console.log('✓ TEST 5 PASSED!\n');
+        resolve();
+      });
+
+      setTimeout(() => reject(new Error('Test 5 timed out')), 6000);
+    });
+
+    // ----------------------------------------------------
+    // TEST 6: Dots Rematch Score Reset & Turn Swapping
+    // ----------------------------------------------------
+    console.log('--- TEST 6: Dots Rematch Score Reset ---');
+    await new Promise((resolve, reject) => {
+      const p1 = io(SERVER_URL);
+      const p2 = io(SERVER_URL);
+
+      p1.on('connect', () => {
+        p1.emit('create-room', { playerName: 'Dots1', gameType: 'dots', config: { rows: 2, cols: 2 } });
+      });
+
+      p1.on('room-created', ({ roomCode }) => {
+        p2.emit('join-room', { roomCode, playerName: 'Dots2' });
+      });
+
+      p2.on('game-started', () => {
+        // Both players request rematch
+        p1.emit('request-rematch');
+        p2.emit('request-rematch');
+      });
+
+      let rematchCount = 0;
+      const onRematch = ({ roomState }) => {
+        rematchCount++;
+        if (rematchCount === 2) {
+          console.log(`✓ Rematch started! Scores: P1=${roomState.scores.P1}, P2=${roomState.scores.P2}, startingTurn=${roomState.currentTurn}`);
+          assert.strictEqual(roomState.scores.P1, 0);
+          assert.strictEqual(roomState.scores.P2, 0);
+          assert.strictEqual(roomState.currentTurn, 'P2'); // Swapped starting turn
+          p1.disconnect();
+          p2.disconnect();
+          console.log('✓ TEST 6 PASSED!\n');
+          resolve();
+        }
+      };
+
+      p1.on('rematch-start', onRematch);
+      p2.on('rematch-start', onRematch);
+
+      setTimeout(() => reject(new Error('Test 6 timed out')), 6000);
+    });
+
+    // ----------------------------------------------------
+    // TEST 7: Move Validation & Error Security
+    // ----------------------------------------------------
+    console.log('--- TEST 7: Move Validation & Out-of-Bounds Rejection ---');
+    await new Promise((resolve, reject) => {
+      const p1 = io(SERVER_URL);
+      const p2 = io(SERVER_URL);
+      let errorCount = 0;
+
+      p1.on('connect', () => {
+        p1.emit('create-room', { playerName: 'TttValidator', gameType: 'tictactoe' });
+      });
+
+      p1.on('room-created', ({ roomCode }) => {
+        p2.emit('join-room', { roomCode, playerName: 'TttGuest' });
+      });
+
+      p1.on('game-started', () => {
+        // Send invalid non-integer move
+        p1.emit('make-move', { index: 1.5 });
+      });
+
+      p1.on('error-message', ({ message }) => {
+        console.log(`✓ Received expected error for invalid move: "${message}"`);
+        assert.strictEqual(message, 'Invalid move!');
+        p1.disconnect();
+        p2.disconnect();
+        console.log('✓ TEST 7 PASSED!\n');
+        resolve();
+      });
+
+      setTimeout(() => reject(new Error('Test 7 timed out')), 5000);
+    });
+
     console.log('🎉 ALL MULTIPLAYER & GAME INTEGRATION TESTS PASSED SUCCESSFULLY!');
   } finally {
     if (spawnedServer) {

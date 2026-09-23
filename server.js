@@ -115,8 +115,99 @@ function checkNewlyCompletedBoxes(lines, rows, cols, currentBoxes) {
 io.on('connection', (socket) => {
   let currentRoomCode = null;
 
+  function handlePlayerLeave() {
+    if (!currentRoomCode) return;
+    const code = currentRoomCode;
+    const room = rooms.get(code);
+    if (!room) {
+      currentRoomCode = null;
+      return;
+    }
+
+    const playerIndex = room.players.findIndex(p => p.id === socket.id);
+
+    if (playerIndex !== -1) {
+      const leavingPlayer = room.players[playerIndex];
+      room.players.splice(playerIndex, 1);
+      room.rematchVotes.delete(socket.id);
+
+      if (room.spectators.length > 0) {
+        const nextPlayer = room.spectators.shift();
+        room.players.push({
+          id: nextPlayer.id,
+          name: nextPlayer.name,
+          symbol: leavingPlayer.symbol,
+          score: 0
+        });
+
+        // Reset board for a fresh game between remaining player and promoted player
+        room.status = 'playing';
+        room.winner = null;
+        room.rematchVotes.clear();
+
+        if (room.gameType === 'tictactoe') {
+          room.board = Array(9).fill(null);
+          room.winningLine = null;
+          room.startingTurn = 'X';
+          room.currentTurn = 'X';
+        } else {
+          room.lines = {};
+          room.boxes = {};
+          room.scores = { P1: 0, P2: 0 };
+          room.startingTurn = 'P1';
+          room.currentTurn = 'P1';
+        }
+
+        io.to(code).emit('player-promoted', {
+          promotedPlayerName: nextPlayer.name,
+          promotedPlayerId: nextPlayer.id,
+          symbol: leavingPlayer.symbol,
+          roomState: getPublicRoomState(room)
+        });
+      } else {
+        if (room.players.length === 0) {
+          rooms.delete(code);
+        } else {
+          room.status = 'waiting';
+          if (room.gameType === 'tictactoe') {
+            room.board = Array(9).fill(null);
+            room.winningLine = null;
+          } else {
+            room.lines = {};
+            room.boxes = {};
+            room.scores = { P1: 0, P2: 0 };
+          }
+          room.winner = null;
+          room.rematchVotes.clear();
+
+          io.to(code).emit('player-left', {
+            playerName: leavingPlayer.name,
+            message: `${leavingPlayer.name} has left the match. Waiting for opponent...`,
+            roomState: getPublicRoomState(room)
+          });
+        }
+      }
+    } else {
+      const specIndex = room.spectators.findIndex(s => s.id === socket.id);
+      if (specIndex !== -1) {
+        room.spectators.splice(specIndex, 1);
+        io.to(code).emit('spectator-update', {
+          spectatorCount: room.spectators.length,
+          roomState: getPublicRoomState(room)
+        });
+      }
+    }
+
+    socket.leave(code);
+    currentRoomCode = null;
+  }
+
   // Create Room
   socket.on('create-room', ({ playerName, gameType = 'tictactoe', config = {} }) => {
+    if (currentRoomCode) {
+      handlePlayerLeave();
+    }
+
     const cleanName = (playerName || 'Player 1').trim().slice(0, 15) || 'Player 1';
     const cleanGameType = gameType === 'dots' ? 'dots' : 'tictactoe';
     const roomCode = generateRoomCode();
@@ -166,6 +257,10 @@ io.on('connection', (socket) => {
 
   // Join Room
   socket.on('join-room', ({ roomCode, playerName }) => {
+    if (currentRoomCode) {
+      handlePlayerLeave();
+    }
+
     const code = (roomCode || '').trim().toUpperCase();
     const room = rooms.get(code);
 
@@ -235,7 +330,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (index < 0 || index > 8 || room.board[index] !== null) {
+    if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index > 8 || room.board[index] !== null) {
       socket.emit('error-message', { message: 'Invalid move!' });
       return;
     }
@@ -290,7 +385,42 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (!lineId || room.lines[lineId]) {
+    if (!lineId || typeof lineId !== 'string') {
+      socket.emit('error-message', { message: 'Invalid move!' });
+      return;
+    }
+
+    const parts = lineId.split('-');
+    if (parts.length !== 3) {
+      socket.emit('error-message', { message: 'Invalid move format!' });
+      return;
+    }
+
+    const [type, rStr, cStr] = parts;
+    const r = parseInt(rStr, 10);
+    const c = parseInt(cStr, 10);
+
+    if (!Number.isInteger(r) || !Number.isInteger(c)) {
+      socket.emit('error-message', { message: 'Invalid move coordinates!' });
+      return;
+    }
+
+    if (type === 'h') {
+      if (r < 0 || r > room.rows || c < 0 || c >= room.cols) {
+        socket.emit('error-message', { message: 'Line coordinates out of bounds!' });
+        return;
+      }
+    } else if (type === 'v') {
+      if (r < 0 || r >= room.rows || c < 0 || c > room.cols) {
+        socket.emit('error-message', { message: 'Line coordinates out of bounds!' });
+        return;
+      }
+    } else {
+      socket.emit('error-message', { message: 'Invalid line type!' });
+      return;
+    }
+
+    if (room.lines[lineId]) {
       socket.emit('error-message', { message: 'This line is already drawn!' });
       return;
     }
@@ -366,6 +496,7 @@ io.on('connection', (socket) => {
       } else {
         room.lines = {};
         room.boxes = {};
+        room.scores = { P1: 0, P2: 0 }; // Box count resets on new round
         room.startingTurn = room.startingTurn === 'P1' ? 'P2' : 'P1';
         room.currentTurn = room.startingTurn;
       }
@@ -401,64 +532,14 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Disconnect / Leave
+  // Explicit leave room
+  socket.on('leave-room', () => {
+    handlePlayerLeave();
+  });
+
+  // Disconnect
   socket.on('disconnect', () => {
-    if (!currentRoomCode) return;
-    const room = rooms.get(currentRoomCode);
-    if (!room) return;
-
-    const playerIndex = room.players.findIndex(p => p.id === socket.id);
-
-    if (playerIndex !== -1) {
-      const leavingPlayer = room.players[playerIndex];
-      room.players.splice(playerIndex, 1);
-
-      if (room.spectators.length > 0) {
-        const nextPlayer = room.spectators.shift();
-        room.players.push({
-          id: nextPlayer.id,
-          name: nextPlayer.name,
-          symbol: leavingPlayer.symbol,
-          score: 0
-        });
-
-        io.to(currentRoomCode).emit('player-promoted', {
-          promotedPlayerName: nextPlayer.name,
-          symbol: leavingPlayer.symbol,
-          roomState: getPublicRoomState(room)
-        });
-      } else {
-        if (room.players.length === 0) {
-          rooms.delete(currentRoomCode);
-        } else {
-          room.status = 'waiting';
-          if (room.gameType === 'tictactoe') {
-            room.board = Array(9).fill(null);
-            room.winningLine = null;
-          } else {
-            room.lines = {};
-            room.boxes = {};
-          }
-          room.winner = null;
-          room.rematchVotes.clear();
-
-          io.to(currentRoomCode).emit('player-left', {
-            playerName: leavingPlayer.name,
-            message: `${leavingPlayer.name} has disconnected. Waiting for opponent...`,
-            roomState: getPublicRoomState(room)
-          });
-        }
-      }
-    } else {
-      const specIndex = room.spectators.findIndex(s => s.id === socket.id);
-      if (specIndex !== -1) {
-        room.spectators.splice(specIndex, 1);
-        io.to(currentRoomCode).emit('spectator-update', {
-          spectatorCount: room.spectators.length,
-          roomState: getPublicRoomState(room)
-        });
-      }
-    }
+    handlePlayerLeave();
   });
 });
 
@@ -466,7 +547,7 @@ function getPublicRoomState(room) {
   const state = {
     code: room.code,
     gameType: room.gameType,
-    players: room.players.map(p => ({ name: p.name, symbol: p.symbol, score: p.score })),
+    players: room.players.map(p => ({ id: p.id, name: p.name, symbol: p.symbol, score: p.score })),
     spectatorsCount: room.spectators.length,
     currentTurn: room.currentTurn,
     status: room.status,
@@ -482,6 +563,7 @@ function getPublicRoomState(room) {
     state.cols = room.cols;
     state.lines = room.lines;
     state.boxes = room.boxes;
+    state.config = { rows: room.rows, cols: room.cols };
   }
 
   return state;

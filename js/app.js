@@ -103,6 +103,10 @@
     const logoTag = document.getElementById('main-logo-tag');
     const btnSelectorNav = document.getElementById('btn-hub-nav');
 
+    if (window.networkManager) {
+      window.networkManager.disconnect();
+    }
+
     if (viewSelector) {
       viewSelector.classList.remove('hidden');
       viewSelector.classList.add('active');
@@ -229,6 +233,11 @@
         window.history.pushState({}, '', '?game=dots');
       });
     }
+
+    // Popstate navigation for browser back/forward buttons
+    window.addEventListener('popstate', () => {
+      checkUrlRouting();
+    });
 
     // Check initial route
     checkUrlRouting();

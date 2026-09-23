@@ -1174,16 +1174,23 @@ body.theme-light .board-cell.cell-win {
   z-index: 10;
 }
 
+#ttt-strike-line,
 #strike-line {
   display: none;
-  stroke-width: 6;
+  stroke-width: 6.5;
   stroke-linecap: round;
   stroke-dasharray: 400;
   stroke-dashoffset: 400;
+  transition: opacity 0.2s ease;
+}
+
+#ttt-strike-line.animate-strike,
+#strike-line.animate-strike {
   animation: drawStrike 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes drawStrike {
+  from { stroke-dashoffset: 400; }
   to { stroke-dashoffset: 0; }
 }
 

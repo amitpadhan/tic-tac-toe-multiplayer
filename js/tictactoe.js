@@ -152,10 +152,17 @@
         });
       }
 
+      // Load saved name
+      const savedName = localStorage.getItem('arcade_player_name');
+      if (savedName && this.dom.inputPlayerName) {
+        this.dom.inputPlayerName.value = savedName;
+      }
+
       // Online Submits
       if (this.dom.btnCreateSubmit) {
         this.dom.btnCreateSubmit.addEventListener('click', () => {
           const name = this.dom.inputPlayerName.value.trim() || 'Player 1';
+          localStorage.setItem('arcade_player_name', name);
           this.createOnlineRoom(name);
         });
       }
@@ -163,12 +170,36 @@
       if (this.dom.btnJoinSubmit) {
         this.dom.btnJoinSubmit.addEventListener('click', () => {
           const name = this.dom.inputPlayerName.value.trim() || 'Player 2';
+          localStorage.setItem('arcade_player_name', name);
           const code = this.dom.inputJoinCode.value.trim().toUpperCase();
           if (!code || code.length < 4) {
             window.showAppToast('Please enter a valid 6-character room code.');
             return;
           }
           this.joinOnlineRoom(code, name);
+        });
+      }
+
+      // Keyboard Accessibility
+      if (this.dom.inputJoinCode) {
+        this.dom.inputJoinCode.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            if (this.dom.btnJoinSubmit) this.dom.btnJoinSubmit.click();
+          }
+        });
+      }
+
+      if (this.dom.inputPlayerName) {
+        this.dom.inputPlayerName.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            if (this.dom.tabCreate && this.dom.tabCreate.classList.contains('active')) {
+              if (this.dom.btnCreateSubmit) this.dom.btnCreateSubmit.click();
+            } else if (this.dom.inputJoinCode) {
+              this.dom.inputJoinCode.focus();
+            }
+          }
         });
       }
 
@@ -257,6 +288,10 @@
       const net = window.networkManager;
       if (!net) return;
 
+      net.on('error-message', (data) => {
+        window.showAppToast(data.message || 'An error occurred.');
+      });
+
       net.on('room-created', (data) => {
         if (data.gameType !== 'tictactoe') return;
         this.closeModal('online');
@@ -264,8 +299,10 @@
         this.onlineState.mySymbol = data.playerSymbol;
         this.onlineState.myName = data.playerName;
         this.onlineState.isHost = true;
+        this.onlineState.isSpectator = false;
         this.onlineState.connected = false;
 
+        this.dom.btnRematch.style.display = '';
         this.showWaitingLobby(data.roomCode);
         this.dom.nameX.textContent = `${data.playerName} (You)`;
         this.dom.nameO.textContent = 'Waiting for opponent...';
@@ -280,21 +317,86 @@
         this.onlineState.mySymbol = data.playerSymbol;
         this.onlineState.myName = data.playerName;
         this.onlineState.isHost = false;
+        this.onlineState.isSpectator = !!data.isSpectator;
 
         this.gameMode = 'online';
-        this.dom.gameModeTag.textContent = 'Online Match';
         this.dom.roomCodeBadge.classList.remove('hidden');
         this.dom.displayRoomCode.textContent = data.roomCode;
         this.dom.waitingLobby.classList.add('hidden');
         this.dom.reactionsBar.classList.remove('hidden');
 
+        if (data.isSpectator) {
+          this.dom.gameModeTag.textContent = 'Spectating';
+          this.dom.btnRematch.style.display = 'none';
+          this.onlineState.connected = true;
+
+          if (data.roomState && data.roomState.players) {
+            const p1 = data.roomState.players[0];
+            const p2 = data.roomState.players[1];
+            this.dom.nameX.textContent = p1 ? p1.name : 'Player 1';
+            this.dom.nameO.textContent = p2 ? p2.name : 'Player 2';
+            this.dom.roleX.textContent = 'Player (X)';
+            this.dom.roleO.textContent = 'Player (O)';
+          }
+
+          if (data.roomState) {
+            if (data.roomState.scores) {
+              this.scores = data.roomState.scores;
+              this.updateScoreboardUI();
+            }
+            if (data.roomState.board) {
+              this.board = data.roomState.board;
+              this.renderBoard();
+            }
+            if (data.roomState.currentTurn) {
+              this.currentTurn = data.roomState.currentTurn;
+              this.updateTurnUI();
+            }
+            this.gameActive = data.roomState.status === 'playing';
+          }
+          this.switchView('game');
+          return;
+        }
+
+        this.dom.gameModeTag.textContent = 'Online Match';
+        this.dom.btnRematch.style.display = '';
+
         if (data.roomState && data.roomState.players && data.roomState.players[0]) {
           this.onlineState.opponentName = data.roomState.players[0].name;
           this.dom.nameX.textContent = data.roomState.players[0].name;
           this.dom.nameO.textContent = `${data.playerName} (You)`;
+          this.dom.roleX.textContent = 'Host (X)';
+          this.dom.roleO.textContent = 'Guest (O)';
         }
 
         this.switchView('game');
+        this.resetBoardState();
+      });
+
+      net.on('player-promoted', (data) => {
+        if (this.gameMode !== 'online') return;
+        if (data.promotedPlayerName === this.onlineState.myName) {
+          this.onlineState.isSpectator = false;
+          this.onlineState.mySymbol = data.symbol;
+          this.dom.gameModeTag.textContent = 'Online Match';
+          this.dom.btnRematch.style.display = '';
+          window.showAppToast("You have been promoted to Player! Match starting...");
+        } else {
+          window.showAppToast(`${data.promotedPlayerName} joined as your new opponent!`);
+        }
+
+        this.onlineState.connected = true;
+        this.dom.waitingLobby.classList.add('hidden');
+
+        if (data.roomState && data.roomState.players) {
+          const px = data.roomState.players.find(p => p.symbol === 'X');
+          const po = data.roomState.players.find(p => p.symbol === 'O');
+          if (px && po) {
+            this.dom.nameX.textContent = px.name + (this.onlineState.mySymbol === 'X' ? ' (You)' : '');
+            this.dom.nameO.textContent = po.name + (this.onlineState.mySymbol === 'O' ? ' (You)' : '');
+            this.onlineState.opponentName = this.onlineState.mySymbol === 'X' ? po.name : px.name;
+          }
+        }
         this.resetBoardState();
       });
 
@@ -310,6 +412,8 @@
             this.dom.nameX.textContent = px.name + (this.onlineState.mySymbol === 'X' ? ' (You)' : '');
             this.dom.nameO.textContent = po.name + (this.onlineState.mySymbol === 'O' ? ' (You)' : '');
             this.onlineState.opponentName = this.onlineState.mySymbol === 'X' ? po.name : px.name;
+            this.dom.roleX.textContent = 'Host (X)';
+            this.dom.roleO.textContent = 'Guest (O)';
           }
         }
 
@@ -320,6 +424,15 @@
 
       net.on('move-made', (data) => {
         if (this.gameMode !== 'online') return;
+
+        // In PeerJS P2P mode, execute the move received from opponent
+        if (window.networkManager && window.networkManager.mode === 'peerjs') {
+          if (data.symbol && data.symbol !== this.onlineState.mySymbol && typeof data.index === 'number') {
+            this.executeMove(data.index, data.symbol);
+            return;
+          }
+        }
+
         if (data.board) {
           this.board = data.board;
           this.renderBoard();
@@ -353,7 +466,7 @@
       });
 
       net.on('rematch-requested', (data) => {
-        if (this.gameMode !== 'online') return;
+        if (this.gameMode !== 'online' || this.onlineState.isSpectator) return;
         this.onlineState.opponentWantsRematch = true;
         if (this.onlineState.rematchRequested) {
           window.networkManager.sendRematchStart();
@@ -368,8 +481,17 @@
         window.showAppToast('Rematch request sent! Waiting for opponent...');
       });
 
-      net.on('rematch-start', () => {
+      net.on('rematch-start', (data) => {
         if (this.gameMode !== 'online') return;
+        if (data && data.roomState) {
+          if (data.roomState.scores) {
+            this.scores = data.roomState.scores;
+            this.updateScoreboardUI();
+          }
+          if (data.roomState.currentTurn) {
+            this.startingTurn = data.roomState.currentTurn;
+          }
+        }
         this.startRematchRound();
       });
 
@@ -414,6 +536,8 @@
       this.dom.roomCodeBadge.classList.add('hidden');
       this.dom.waitingLobby.classList.add('hidden');
       this.dom.reactionsBar.classList.add('hidden');
+      if (this.dom.btnRematch) this.dom.btnRematch.style.display = '';
+      if (this.dom.boardGrid) this.dom.boardGrid.style.pointerEvents = 'auto';
 
       this.dom.nameX.textContent = 'Player 1 (X)';
       this.dom.nameO.textContent = 'Player 2 (O)';
@@ -432,6 +556,8 @@
       this.dom.roomCodeBadge.classList.add('hidden');
       this.dom.waitingLobby.classList.add('hidden');
       this.dom.reactionsBar.classList.add('hidden');
+      if (this.dom.btnRematch) this.dom.btnRematch.style.display = '';
+      if (this.dom.boardGrid) this.dom.boardGrid.style.pointerEvents = 'auto';
 
       if (this.aiConfig.playerSymbol === 'X') {
         this.dom.nameX.textContent = 'You (X)';
@@ -605,12 +731,21 @@
       if (!this.gameActive || this.board[index] !== null) return;
 
       if (this.gameMode === 'online') {
+        if (this.onlineState.isSpectator) {
+          window.showAppToast("Spectators cannot make moves.");
+          return;
+        }
         if (!this.onlineState.connected || this.currentTurn !== this.onlineState.mySymbol) {
           window.showAppToast("Wait for your turn!");
           return;
         }
 
-        window.networkManager.sendMove({ index, symbol: this.onlineState.mySymbol });
+        if (window.networkManager && window.networkManager.mode === 'peerjs') {
+          this.executeMove(index, this.onlineState.mySymbol);
+          window.networkManager.sendMove({ index, symbol: this.onlineState.mySymbol });
+        } else {
+          window.networkManager.sendMove({ index, symbol: this.onlineState.mySymbol });
+        }
         return;
       }
 
@@ -705,11 +840,15 @@
           this.dom.strikeLine.style.filter = 'drop-shadow(0 0 10px rgba(var(--o-color-rgb), 0.7))';
         }
         this.dom.strikeLine.style.display = 'block';
+        this.dom.strikeLine.classList.remove('animate-strike');
+        void this.dom.strikeLine.offsetWidth;
+        this.dom.strikeLine.classList.add('animate-strike');
       }
     }
 
     hideWinningStrike() {
       this.dom.strikeLine.style.display = 'none';
+      this.dom.strikeLine.classList.remove('animate-strike');
     }
 
     renderBoard() {
@@ -735,6 +874,7 @@
       this.board = Array(9).fill(null);
       this.currentTurn = this.startingTurn;
       this.gameActive = true;
+      if (this.dom.boardGrid) this.dom.boardGrid.style.pointerEvents = 'auto';
       this.hideWinningStrike();
       this.dom.cells.forEach(cell => {
         delete cell.dataset.rendered;
@@ -762,6 +902,7 @@
 
     startRematchRound() {
       this.dom.btnRematch.classList.remove('pulse-highlight');
+      if (this.dom.boardGrid) this.dom.boardGrid.style.pointerEvents = 'auto';
       this.onlineState.rematchRequested = false;
       this.onlineState.opponentWantsRematch = false;
       this.startingTurn = this.startingTurn === 'X' ? 'O' : 'X';
@@ -781,9 +922,12 @@
       this.gameActive = false;
       this.onlineState.connected = false;
       this.onlineState.roomCode = null;
+      this.onlineState.isSpectator = false;
       this.onlineState.rematchRequested = false;
       this.onlineState.opponentWantsRematch = false;
       this.dom.btnRematch.classList.remove('pulse-highlight');
+      if (this.dom.btnRematch) this.dom.btnRematch.style.display = '';
+      if (this.dom.boardGrid) this.dom.boardGrid.style.pointerEvents = 'auto';
       this.hideWinningStrike();
       this.switchView('menu');
     }
