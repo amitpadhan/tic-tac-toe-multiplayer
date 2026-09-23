@@ -377,6 +377,52 @@ async function runTests() {
       setTimeout(() => reject(new Error('Test 7 timed out')), 5000);
     });
 
+    // ----------------------------------------------------
+    // TEST 8: Dots 5x5 Grid Room Creation & Boundary Validation
+    // ----------------------------------------------------
+    console.log('--- TEST 8: Dots 5x5 Grid Room Creation & Boundary Validation ---');
+    await new Promise((resolve, reject) => {
+      const p1 = io(SERVER_URL);
+      const p2 = io(SERVER_URL);
+
+      p1.on('connect', () => {
+        p1.emit('create-room', { playerName: 'DotsHost5x5', gameType: 'dots', config: { rows: 5, cols: 5 } });
+      });
+
+      p1.on('room-created', ({ roomCode }) => {
+        p2.emit('join-room', { roomCode, playerName: 'DotsGuest5x5' });
+      });
+
+      p2.on('game-started', ({ roomState }) => {
+        console.log(`✓ 5x5 Game started. Rows=${roomState.rows}, Cols=${roomState.cols}`);
+        assert.strictEqual(roomState.rows, 5);
+        assert.strictEqual(roomState.cols, 5);
+
+        // Draw valid edge line on 5x5 grid (h-5-4 is bottom edge row 5, col 4)
+        p1.emit('dots-move-line', { lineId: 'h-5-4' });
+      });
+
+      p2.on('dots-move-made', ({ lineId, symbol }) => {
+        console.log(`✓ Received move on 5x5 grid: ${lineId} by ${symbol}`);
+        assert.strictEqual(lineId, 'h-5-4');
+        assert.strictEqual(symbol, 'P1');
+
+        // Now test out of bounds line on row 6: h-6-0
+        p2.emit('dots-move-line', { lineId: 'h-6-0' });
+      });
+
+      p2.on('error-message', ({ message }) => {
+        console.log(`✓ Received expected out-of-bounds error for row 6: "${message}"`);
+        assert.strictEqual(message, 'Line coordinates out of bounds!');
+        p1.disconnect();
+        p2.disconnect();
+        console.log('✓ TEST 8 PASSED!\n');
+        resolve();
+      });
+
+      setTimeout(() => reject(new Error('Test 8 timed out')), 6000);
+    });
+
     console.log('🎉 ALL MULTIPLAYER & GAME INTEGRATION TESTS PASSED SUCCESSFULLY!');
   } finally {
     if (spawnedServer) {

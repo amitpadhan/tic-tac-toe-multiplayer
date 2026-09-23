@@ -39,6 +39,11 @@
         opponentWantsRematch: false
       };
 
+      this.localConfig = {
+        gridSize: 3,
+        startingTurn: 'P1'
+      };
+
       this.dom = {};
     }
 
@@ -53,6 +58,9 @@
       this.dom.viewGame = document.getElementById('view-dots-game');
       this.dom.modalOnline = document.getElementById('modal-dots-online');
       this.dom.modalAi = document.getElementById('modal-dots-ai');
+      this.dom.modalLocal = document.getElementById('modal-dots-local');
+      this.dom.quickGridBar = document.getElementById('dots-quick-grid-bar');
+      this.dom.quickGridChips = document.querySelectorAll('#dots-quick-grid-chips .grid-chip');
 
       this.dom.boardContainer = document.getElementById('dots-board-container');
       this.dom.statusBanner = document.getElementById('dots-status-banner');
@@ -113,7 +121,7 @@
       if (btnStartLocal) {
         btnStartLocal.addEventListener('click', () => {
           window.soundFX.playClick();
-          this.startLocalGame();
+          this.openModal('local');
         });
       }
 
@@ -221,6 +229,42 @@
         btnStartAi.addEventListener('click', () => {
           this.closeModal('ai');
           this.startAIGame();
+        });
+      }
+
+      // Local Pass & Play Controls
+      document.querySelectorAll('#dots-local-grid-control .segment-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('#dots-local-grid-control .segment-btn').forEach(b => b.classList.remove('active'));
+          e.currentTarget.classList.add('active');
+          this.localConfig.gridSize = parseInt(e.currentTarget.dataset.size, 10) || 3;
+        });
+      });
+
+      document.querySelectorAll('#dots-local-turn-control .segment-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('#dots-local-turn-control .segment-btn').forEach(b => b.classList.remove('active'));
+          e.currentTarget.classList.add('active');
+          this.localConfig.startingTurn = e.currentTarget.dataset.turn || 'P1';
+        });
+      });
+
+      const btnStartLocalGame = document.getElementById('dots-btn-start-local-game');
+      if (btnStartLocalGame) {
+        btnStartLocalGame.addEventListener('click', () => {
+          this.closeModal('local');
+          this.startLocalGame(this.localConfig.gridSize, this.localConfig.startingTurn);
+        });
+      }
+
+      // In-Game Quick Grid Selector Chips (Local & AI)
+      if (this.dom.quickGridChips) {
+        this.dom.quickGridChips.forEach(chip => {
+          chip.addEventListener('click', (e) => {
+            const size = parseInt(e.currentTarget.dataset.size, 10) || 3;
+            if (this.rows === size && this.cols === size) return;
+            this.changeGridSize(size);
+          });
         });
       }
 
@@ -421,16 +465,23 @@
         if (data.gameType && data.gameType !== 'dots') return;
         this.dom.waitingLobby.classList.add('hidden');
         this.onlineState.connected = true;
+        if (this.dom.quickGridBar) this.dom.quickGridBar.classList.add('hidden');
 
-        if (data.roomState && data.roomState.players) {
-          const p1 = data.roomState.players.find(p => p.symbol === 'P1');
-          const p2 = data.roomState.players.find(p => p.symbol === 'P2');
-          if (p1 && p2) {
-            this.dom.nameP1.textContent = p1.name + (this.onlineState.mySymbol === 'P1' ? ' (You)' : '');
-            this.dom.nameP2.textContent = p2.name + (this.onlineState.mySymbol === 'P2' ? ' (You)' : '');
-            this.onlineState.opponentName = this.onlineState.mySymbol === 'P1' ? p2.name : p1.name;
-            this.dom.roleP1.textContent = 'Host (P1)';
-            this.dom.roleP2.textContent = 'Guest (P2)';
+        if (data.roomState) {
+          if (data.roomState.rows) {
+            this.rows = data.roomState.rows;
+            this.cols = data.roomState.cols || data.roomState.rows;
+          }
+          if (data.roomState.players) {
+            const p1 = data.roomState.players.find(p => p.symbol === 'P1');
+            const p2 = data.roomState.players.find(p => p.symbol === 'P2');
+            if (p1 && p2) {
+              this.dom.nameP1.textContent = p1.name + (this.onlineState.mySymbol === 'P1' ? ' (You)' : '');
+              this.dom.nameP2.textContent = p2.name + (this.onlineState.mySymbol === 'P2' ? ' (You)' : '');
+              this.onlineState.opponentName = this.onlineState.mySymbol === 'P1' ? p2.name : p1.name;
+              this.dom.roleP1.textContent = 'Host (P1)';
+              this.dom.roleP2.textContent = 'Guest (P2)';
+            }
           }
         }
 
@@ -496,11 +547,13 @@
     openModal(id) {
       if (id === 'online' && this.dom.modalOnline) this.dom.modalOnline.classList.remove('hidden');
       if (id === 'ai' && this.dom.modalAi) this.dom.modalAi.classList.remove('hidden');
+      if (id === 'local' && this.dom.modalLocal) this.dom.modalLocal.classList.remove('hidden');
     }
 
     closeModal(id) {
       if (id === 'online' && this.dom.modalOnline) this.dom.modalOnline.classList.add('hidden');
       if (id === 'ai' && this.dom.modalAi) this.dom.modalAi.classList.add('hidden');
+      if (id === 'local' && this.dom.modalLocal) this.dom.modalLocal.classList.add('hidden');
     }
 
     switchView(viewName) {
@@ -518,15 +571,21 @@
     }
 
     /* ---------------- Mode 1: Local Pass & Play ---------------- */
-    startLocalGame(gridSize = 3) {
+    startLocalGame(gridSize = 3, startingTurn = 'P1') {
       this.gameMode = 'local';
       this.rows = gridSize;
       this.cols = gridSize;
+      this.startingTurn = startingTurn;
+      this.currentTurn = startingTurn;
+      this.scores = { P1: 0, P2: 0 };
 
       this.dom.gameModeTag.textContent = `Pass & Play (${gridSize}x${gridSize})`;
       this.dom.roomCodeBadge.classList.add('hidden');
       this.dom.waitingLobby.classList.add('hidden');
       this.dom.reactionsBar.classList.add('hidden');
+      if (this.dom.quickGridBar) this.dom.quickGridBar.classList.remove('hidden');
+      this.updateQuickGridChips(gridSize);
+
       if (this.dom.btnRematch) this.dom.btnRematch.style.display = '';
       if (this.dom.boardContainer) this.dom.boardContainer.style.pointerEvents = 'auto';
 
@@ -542,11 +601,18 @@
     /* ---------------- Mode 2: Play vs AI ---------------- */
     startAIGame() {
       this.gameMode = 'ai';
+      this.scores = { P1: 0, P2: 0 };
+      this.startingTurn = 'P1';
+      this.currentTurn = 'P1';
+
       const diffLabel = this.aiConfig.difficulty.charAt(0).toUpperCase() + this.aiConfig.difficulty.slice(1);
       this.dom.gameModeTag.textContent = `VS AI (${diffLabel} - ${this.rows}x${this.cols})`;
       this.dom.roomCodeBadge.classList.add('hidden');
       this.dom.waitingLobby.classList.add('hidden');
       this.dom.reactionsBar.classList.add('hidden');
+      if (this.dom.quickGridBar) this.dom.quickGridBar.classList.remove('hidden');
+      this.updateQuickGridChips(this.rows);
+
       if (this.dom.btnRematch) this.dom.btnRematch.style.display = '';
       if (this.dom.boardContainer) this.dom.boardContainer.style.pointerEvents = 'auto';
 
@@ -568,6 +634,54 @@
       if (this.aiConfig.aiSymbol === 'P1') {
         this.triggerAIMove();
       }
+    }
+
+    changeGridSize(newSize) {
+      this.rows = newSize;
+      this.cols = newSize;
+      this.scores = { P1: 0, P2: 0 };
+      this.updateQuickGridChips(newSize);
+
+      if (this.gameMode === 'local') {
+        this.localConfig.gridSize = newSize;
+        this.dom.gameModeTag.textContent = `Pass & Play (${newSize}x${newSize})`;
+        this.resetBoardState();
+        window.showAppToast(`Grid changed to ${newSize}x${newSize} (${newSize * newSize} Boxes)!`);
+      } else if (this.gameMode === 'ai') {
+        const diffLabel = this.aiConfig.difficulty.charAt(0).toUpperCase() + this.aiConfig.difficulty.slice(1);
+        this.dom.gameModeTag.textContent = `VS AI (${diffLabel} - ${newSize}x${newSize})`;
+        this.resetBoardState();
+        window.showAppToast(`Grid changed to ${newSize}x${newSize} (${newSize * newSize} Boxes)!`);
+        if (this.aiConfig.aiSymbol === this.startingTurn) {
+          this.triggerAIMove();
+        }
+      }
+    }
+
+    updateQuickGridChips(size) {
+      if (this.dom.quickGridChips) {
+        this.dom.quickGridChips.forEach(chip => {
+          if (parseInt(chip.dataset.size, 10) === size) {
+            chip.classList.add('active');
+          } else {
+            chip.classList.remove('active');
+          }
+        });
+      }
+      document.querySelectorAll('#dots-local-grid-control .segment-btn').forEach(btn => {
+        if (parseInt(btn.dataset.size, 10) === size) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+      document.querySelectorAll('#dots-ai-grid-control .segment-btn').forEach(btn => {
+        if (parseInt(btn.dataset.size, 10) === size) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
     }
 
     /* ---------------- Mode 3: Online Multiplayer ---------------- */
@@ -596,6 +710,7 @@
       this.dom.lobbyCodeDisplay.textContent = code;
       this.dom.waitingLobby.classList.remove('hidden');
       this.dom.reactionsBar.classList.remove('hidden');
+      if (this.dom.quickGridBar) this.dom.quickGridBar.classList.add('hidden');
 
       this.resetBoardState();
       this.gameActive = false;
@@ -1060,6 +1175,7 @@
       this.dom.btnRematch.classList.remove('pulse-highlight');
       if (this.dom.btnRematch) this.dom.btnRematch.style.display = '';
       if (this.dom.boardContainer) this.dom.boardContainer.style.pointerEvents = 'auto';
+      if (this.dom.quickGridBar) this.dom.quickGridBar.classList.add('hidden');
       this.switchView('menu');
     }
 
